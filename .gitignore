@@ -1,0 +1,22 @@
+# secrets
+.env
+web/.env
+
+# dependencies
+node_modules/
+web/node_modules/
+venv/
+
+# generated
+web/generated/
+web/.next/
+__pycache__/
+*.pyc
+
+# prisma-generated AI tool docs
+.agents/
+.claude/
+.cursor/
+.devin/
+.windsurf/
+skills-lock.json

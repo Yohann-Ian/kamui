@@ -1,0 +1,84 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../web/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Job {
+  id            String   @id
+  source        String
+  company       String
+  title         String
+  location      String?
+  locationBin   String?
+  track         String
+  url           String
+  description   String?
+  firstSeen     DateTime @default(now())
+  raw           Json?
+  judgments     Judgment[]
+  application   Application?
+  statusNotes   StatusNote[]
+}
+
+model Rubric {
+  id        String     @id @default(cuid())
+  track     String
+  version   Int
+  active    Boolean    @default(false)
+  body      String
+  createdAt DateTime   @default(now())
+  judgments Judgment[]
+}
+
+model Judgment {
+  id        String   @id @default(cuid())
+  job       Job      @relation(fields: [jobId], references: [id])
+  jobId     String
+  rubric    Rubric   @relation(fields: [rubricId], references: [id])
+  rubricId  String
+  grade     String
+  score     Int
+  reason    String
+  keyGap    String?
+  createdAt DateTime @default(now())
+
+  @@unique([jobId, rubricId])
+}
+
+model Application {
+  id        String   @id @default(cuid())
+  job       Job      @relation(fields: [jobId], references: [id])
+  jobId     String   @unique
+  status    String   @default("interested")
+  notes     String?
+  updatedAt DateTime @updatedAt
+}
+
+model Batch {
+  id          String   @id @default(cuid())
+  batchId     String   @unique
+  track       String
+  status      String   @default("pending")
+  submittedAt DateTime @default(now())
+}
+
+
+model StatusNote {
+  id        String   @id @default(cuid())
+  job       Job      @relation(fields: [jobId], references: [id])
+  jobId     String
+  stage     String
+  note      String
+  createdAt DateTime @default(now())
+
+  @@unique([jobId, stage])
+}
