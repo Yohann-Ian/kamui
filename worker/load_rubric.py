@@ -1,70 +1,31 @@
 import os
+import argparse
+from pathlib import Path
 import psycopg
 from dotenv import load_dotenv
 
 load_dotenv()
 DATABASE_URL = os.environ["DATABASE_URL"]
 
-TRACK = "ai-ml"
-VERSION = 0
-
-RUBRIC_BODY = """You are grading a single job description for how well ONE candidate fits it.
-Return a grade, a score, and a one-line reason. Grade the substance of the work
-against the candidate below. Be honest, not generous.
-
-THE CANDIDATE
-- Career-changer moving into AI/ML engineering. One flagship applied project, a
-  research Master's, no prior professional ML job title yet.
-- Core buildable strength: designs and builds LLM applications in Python.
-  Retrieval-augmented generation (RAG) pipelines and agentic systems, including
-  retrieval, grounding and citation gates, and LLM-as-judge evaluation. This is
-  demonstrated, not aspirational.
-- Supporting ML: PyTorch. Trained and evaluated a deep object detector for the
-  Master's thesis (research-grade, not production).
-- Engineering foundation: BEng Mechatronic Engineering, 4 years product and test
-  engineering at Texas Instruments (semiconductor, analog IC), Master's in
-  Systems Engineering, First Class Honours.
-- Best-fit level: junior to mid roles centered on building with LLMs.
-
-GRADES
-- Fit: The core day-to-day is building LLM or AI-powered applications (RAG,
-  agents, retrieval, applied AI, LLM app development) in Python, at junior to mid
-  level. The flagship project is direct evidence. Titles like AI Engineer,
-  Applied AI Engineer, LLM Engineer, AI Software Engineer.
-- Possible: A stretch or adjacent role. ML Engineer roles leaning applied rather
-  than research, roles mixing AI with software or systems he can plausibly do, or
-  mid roles slightly above his demonstrated scope where the flagship project plus
-  engineering background make a tailored application credible. Roles blending AI
-  with hardware, systems or semiconductor belong here or higher.
-- Improbable: A real gap. Senior, Staff or Lead roles built on years of shipped
-  production ML, large-scale training or serving infrastructure, or specialized
-  subfields he has not worked in. He can apply, but the odds are long.
-- Unfit: Not his track. Pure data engineering, research scientist roles requiring
-  a PhD and publications, non-AI software roles matched on a stray keyword, or
-  roles demanding a stack wholly absent from his profile.
-
-SCORE
-Within the grade, score 0 to 100 for how central his real strengths are to the
-role and how winnable it is.
-
-HARD RULES
-- Do not lower the grade because the posting states a work-authorization or visa
-  requirement. Grade the work, not the paperwork.
-- Do not lower the grade solely because the posting states a minimum years of
-  experience. Judge the actual scope and seniority of the work. A genuinely
-  senior scope is still Improbable; a mid scope with a "5 years" line is not.
-- Neuromorphic, spiking neural network, and event-camera experience is on his CV
-  but is NOT a matching signal. Do not treat its presence or absence as either.
-"""
+# one rubric file per track: rubrics/<track>.txt
+RUBRICS_DIR = Path(__file__).parent / "rubrics"
+TRACKS = sorted(p.stem for p in RUBRICS_DIR.glob("*.txt"))
 
 
-def load():
+def load(track):
+    body = (RUBRICS_DIR / f"{track}.txt").read_text(encoding="utf-8")
     with psycopg.connect(DATABASE_URL) as conn:
         with conn.cursor() as cur:
+            # next version number for this track, starting at 0
+            cur.execute(
+                'SELECT COALESCE(MAX(version) + 1, 0) FROM "Rubric" WHERE track = %s',
+                (track,),
+            )
+            version = cur.fetchone()[0]
             # turn off any currently-active rubric for this track
             cur.execute(
                 'UPDATE "Rubric" SET active = false WHERE track = %s',
-                (TRACK,),
+                (track,),
             )
             # insert this rubric as the active one
             cur.execute(
@@ -72,11 +33,14 @@ def load():
                 INSERT INTO "Rubric" (id, track, version, active, body, "createdAt")
                 VALUES (gen_random_uuid()::text, %s, %s, true, %s, now())
                 """,
-                (TRACK, VERSION, RUBRIC_BODY),
+                (track, version, body),
             )
         conn.commit()
-    print(f"Loaded and activated {TRACK} rubric v{VERSION}.")
+    print(f"Loaded and activated {track} rubric v{version}.")
 
 
 if __name__ == "__main__":
-    load()
+    parser = argparse.ArgumentParser(description="Load a track's rubric and make it active.")
+    parser.add_argument("track", choices=TRACKS)
+    args = parser.parse_args()
+    load(args.track)

@@ -1,5 +1,6 @@
 import os
 import json
+import argparse
 from apify_client import ApifyClient
 import psycopg
 from dotenv import load_dotenv
@@ -11,22 +12,35 @@ DATABASE_URL = os.environ["DATABASE_URL"]
 
 ACTOR_ID = "jharney/career-site-jobs-api"
 
-# The same settings you tested in the Apify form
-run_input = {
-    "mode": "search",
-    "titleIncludes": ["machine learning engineer", "AI engineer"],
-    "location": "United States",
-    "includeDescription": True,
-    "maxBoards": 500,
-    "maxJobs": 50,
-    "maxJobsPerBoard": 10,
+# title keywords searched for each track
+TITLES = {
+    "ai-ml": ["machine learning engineer", "AI engineer"],
+    "b2b-content": [
+        "content writer",
+        "content marketing",
+        "content strategist",
+        "technical content",
+        "product marketing manager",
+    ],
 }
 
-TRACK = "ai-ml"
+
+def build_run_input(track):
+    # The same settings you tested in the Apify form
+    return {
+        "mode": "search",
+        "titleIncludes": TITLES[track],
+        "location": "United States",
+        "includeDescription": True,
+        "maxBoards": 500,
+        "maxJobs": 50,
+        "maxJobsPerBoard": 10,
+    }
 
 
-def fetch_jobs():
+def fetch_jobs(track):
     client = ApifyClient(APIFY_TOKEN)
+    run_input = build_run_input(track)
     print("Starting actor run, this takes about a minute...")
     run = client.actor(ACTOR_ID).call(run_input=run_input)
     items = list(client.dataset(run.default_dataset_id).iterate_items())
@@ -34,7 +48,7 @@ def fetch_jobs():
     return items
 
 
-def save_jobs(items):
+def save_jobs(items, track):
     inserted = 0
     with psycopg.connect(DATABASE_URL) as conn:
         with conn.cursor() as cur:
@@ -54,7 +68,7 @@ def save_jobs(items):
                         job.get("title"),
                         job.get("location"),
                         job.get("location"),
-                        TRACK,
+                        track,
                         job.get("url"),
                         job.get("descriptionText"),
                         json.dumps(job),
@@ -62,9 +76,12 @@ def save_jobs(items):
                 )
                 inserted += cur.rowcount
         conn.commit()
-    print(f"Wrote {inserted} new jobs into the Job table.")
+    print(f"Wrote {inserted} new {track} jobs into the Job table.")
 
 
 if __name__ == "__main__":
-    jobs = fetch_jobs()
-    save_jobs(jobs)
+    parser = argparse.ArgumentParser(description="Fetch jobs for one track.")
+    parser.add_argument("track", choices=TITLES.keys())
+    args = parser.parse_args()
+    jobs = fetch_jobs(args.track)
+    save_jobs(jobs, args.track)

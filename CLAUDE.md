@@ -44,9 +44,10 @@ Three parts around one Postgres database on Railway.
 ## Files
 
     prisma/schema.prisma        the single source of truth for the schema
-    worker/fetch.py             runs the Apify actor, writes jobs to Postgres
-    worker/judge.py             grades ungraded jobs with Claude Haiku
-    worker/load_rubric.py       writes a rubric into the Rubric table and activates it
+    worker/fetch.py <track>     runs the Apify actor, writes jobs to Postgres
+    worker/judge.py <track>     grades ungraded jobs with Claude Haiku
+    worker/load_rubric.py <track>  loads rubrics/<track>.txt as the next version and activates it
+    worker/rubrics/             one rubric file per track (ai-ml.txt, b2b-content.txt)
     web/lib/prisma.ts           Prisma client (needs the @prisma/adapter-pg driver adapter)
     web/app/page.tsx            Discovery (server)
     web/app/JobBoard.tsx        Discovery (client)
@@ -93,10 +94,8 @@ upgrade once volume justifies it (50% cheaper, up to 24h turnaround).
 
 ## Still to build
 
-1. B2B content rubric, and make `fetch.py` / `judge.py` take a track argument instead
-   of hardcoding `ai-ml`.
-2. Deploy to Railway as two services (`web` and `worker`) plus the existing Postgres,
+1. Deploy to Railway as two services (`web` and `worker`) plus the existing Postgres,
    with the worker on a schedule.
-3. Tune sourcing for junior and mid roles.
-4. Eventually: a SearchConfig table so search keywords and locations are editable
+2. Tune sourcing for junior and mid roles.
+3. Eventually: a SearchConfig table so search keywords and locations are editable
    from the UI rather than hardcoded in `fetch.py`.

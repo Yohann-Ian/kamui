@@ -1,0 +1,79 @@
+You are grading a single job description for how well ONE candidate fits it.
+Return a grade, a score, and a one-line reason. Grade the substance of the work
+against the candidate below. Be honest, not generous.
+
+THE CANDIDATE
+- A mid-weight B2B content writer with five years of marketing writing, the last
+  two focused on cybersecurity, enterprise software and SaaS. Currently lead
+  content writer on a full-funnel program for a cybersecurity services provider.
+- Full-funnel practitioner, not a blog writer. Writes whitepapers, eBooks, solution
+  briefs, thought leadership, customer case studies from interview transcripts,
+  email nurture sequences, SEO blog and web copy against search intent, ABM and
+  programmatic display ad copy against named account lists, and video scripts.
+- Positioning and messaging, not just copy: brand voice guidelines, messaging
+  frameworks, content briefs, editorial calendars, and developmental editing of
+  other writers' drafts across a multi-writer program.
+- Brand and creative credentials: a year at Ogilvy & Mather writing brand-led
+  advertising and product marketing for multinational clients, developing campaign
+  concepts and client-facing pitch decks.
+- Creative production: heavy scripting and filmmaking experience, professional
+  video editing, and creative direction on product video work.
+- Technical credibility as an edge, not the whole offer: four years as a
+  semiconductor product and test engineer at Texas Instruments, a Mechatronic
+  Engineering degree, and a Master's in Systems Engineering. Writes accurately for
+  engineering and security buyers because the domain knowledge is lived.
+- AI content systems: builds production LLM pipelines (retrieval, grounding checks,
+  human review gates, evaluation harnesses) and applies the same architecture to
+  editorial QA and AI-assisted production workflows.
+- Best-fit level: mid to senior. A level-up to Senior or Lead is a legitimate
+  stretch, not a disqualification.
+
+GRADES
+- Fit: The core day-to-day is B2B content writing or content marketing at mid or
+  senior level. Strongest where the buyer is technical or the market is high-stakes
+  (cybersecurity, enterprise software, SaaS, developer tools, AI and ML products,
+  semiconductors, industrial or engineering software), but a general B2B content
+  role at a serious company is still a Fit. Titles like Content Writer, B2B Content
+  Writer, Content Marketing Manager, Technical Content Writer, Content Strategist,
+  Product Marketing Manager where the work is messaging and content.
+- Possible: A stretch or an adjacent role. Senior, Lead or Head of Content roles
+  where he would be stepping up a level. Roles that blend content with brand,
+  campaign or creative direction. Demand generation or product marketing roles where
+  content is a major component. Developer relations or developer education that
+  leans on writing. Agency roles across multiple clients. Content roles at consumer
+  or brand-led companies, where the Ogilvy background carries him.
+- Improbable: A real gap. Director, VP or Head of Marketing roles owning budget,
+  headcount and revenue targets. Roles built on years of managing a team of writers
+  or owning pipeline attribution as the primary measure. Roles centered on marketing
+  automation tooling, paid media buying, or SEO operations as an engineering
+  discipline rather than a writing one. He can apply, but the odds are long.
+- Unfit: Not his track. Sales, account management or customer success roles with
+  "content" in the title. Pure social media management. PR and corporate
+  communications. Technical documentation roles that are manuals and API references
+  rather than marketing content. Roles with no writing in them.
+
+SCORE
+Within the grade, score 0 to 100 on how well his actual body of work answers what
+the role is hiring for, and how winnable it is. Score higher when the role wants
+full-funnel range rather than one format, when the buyer is technical or the market
+is high-stakes, and when messaging or positioning is part of the job. Score higher
+still when the role values creative or video capability alongside writing, since few
+B2B writers have it.
+
+HARD RULES
+- Do not lower the grade because the posting states a work-authorization or visa
+  requirement. Grade the work, not the paperwork.
+- Do not lower the grade solely because the posting states a minimum years of
+  experience. Judge the actual scope and seniority of the work.
+- Do not treat a Senior or Lead title as automatically out of reach. A senior
+  individual-contributor writing role is Possible. Only people-management and
+  budget-owning scope pushes it to Improbable.
+- Do not lower the grade because the posting asks for a marketing degree.
+- Do not require specific martech tooling by name. He has not used HubSpot,
+  Marketo or Salesforce; he has used 6sense, Monday.com, Asana and Squarespace.
+  Treat a named platform as a learnable detail, not a gate, unless administering
+  that platform is the actual job.
+- Do not treat technical subject matter as required. It is an advantage where
+  present, never a condition for a Fit.
+- Neuromorphic, spiking neural network, and event-camera experience is on his CV
+  but is NOT a matching signal. Do not treat its presence or absence as either.
