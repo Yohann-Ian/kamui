@@ -22,6 +22,7 @@ import {
 
 const OUT = new URL("../KAMUI-postmortem.docx", import.meta.url);
 const UPDATED = "2026-09-24";
+const LATEST = "Phase 4";
 
 // ---------------------------------------------------------------- content
 
@@ -30,6 +31,7 @@ const SYSTEM_NOW = [
   "Prisma 7 owns the schema (prisma/schema.prisma). The generated client lives in web/generated/prisma and needs the @prisma/adapter-pg driver adapter.",
   "Searching runs the Apify actor jharney/career-site-jobs-api from web/lib/apify.ts. Ranking calls claude-haiku-4-5 from web/lib/rank.ts. Both run inside API routes under web/app/api/.",
   "Battlefields are the organising unit: each has its own keywords, excludes, locations, caps, versioned rubric and jobs. Pages select one with ?battlefield=<slug>.",
+  "Explore (/explore) runs one-off searches that are saved as SearchWaves (jobs with no Battlefield). A wave can be promoted into a Battlefield; promoted jobs are unranked copies.",
   "Every automation is off by default. Search and Rank only run when the user clicks, or when a Battlefield's Auto-Populate / Auto-Rank switch is on.",
   "Railway auto-deploy from GitHub was disconnected by the user during Phase 1 and has not been reconnected. The deployed web service is running pre-Phase-1 code against the new schema, so it is broken.",
 ];
@@ -305,6 +307,61 @@ const PHASES = [
       "None kept. The test Battlefield \"UI Smoke Test\" and its 2 rubric versions were deleted, and the one job dismissed during the test was restored.",
     ],
   },
+  {
+    title: "Phase 4: Explore and the holding bay",
+    date: "2026-09-24",
+    commit: "ca85d2b",
+    summary:
+      "Built the Explore page (keyword and location search that saves an unranked SearchWave), the holding bay of past waves that reopen from the database at no cost, and promotion of a wave into an existing or new Battlefield.",
+    changes: [
+      "web/app/explore/page.tsx and Explore.tsx: search form, holding bay list (100 most recent waves), the selected wave's jobs (?wave=<id>, defaulting to the newest), and the promote controls.",
+      "web/lib/waves.ts: waveJobs (a wave's own rows: searchWaveId set and battlefieldId null) and copyWaveJobs, moved out of the promote route so the create form can use it too.",
+      "web/app/battlefields/new/page.tsx accepts ?fromWave=<id> and pre-fills name, keywords and locations from the wave. createBattlefield copies the wave's jobs in when a hidden fromWave field is present.",
+      "Discovery's header links to Explore.",
+    ],
+    decisions: [
+      [
+        "\"New Battlefield from this search\" goes through the create form instead of creating one in a single click",
+        "The spec asks for the new Battlefield's keywords to be pre-filled from the wave. A pre-filled form lets the user check keywords and caps before anything exists.",
+        "The promote route's newBattlefield option still exists but the UI does not use it.",
+      ],
+      [
+        "The new-Battlefield form keeps the spec caps (2000 / 200 / 25), not Explore's small caps",
+        "Consistent with any other new Battlefield.",
+        "Its first Search New can return up to 200 jobs per location. The caps are visible and editable on the form.",
+      ],
+      [
+        "Explore rows have no closed check, no dismiss and no detail panel",
+        "A wave is a snapshot of one paid search, not a working list. The description expands inline and Open posting links out.",
+        "Closure and dismissal apply once jobs are promoted into a Battlefield.",
+      ],
+      [
+        "Wave times are shown in UTC",
+        "Formatted on the server, so server and browser render the same text.",
+        "",
+      ],
+    ],
+    incidents: [
+      [
+        "The search box is empty again after a search completes.",
+        "The page is keyed by wave id, so it remounts when it navigates to the new wave.",
+        "Left as is: the query is shown as the wave's heading and in the holding bay.",
+      ],
+    ],
+    verification: [
+      "tsc and eslint clean.",
+      "Headless Edge walkthrough, no console errors: Explore opens from Discovery and shows the saved wave; its description expands; \"start a new Battlefield\" pre-fills name, keywords and locations and states the job count; creating it lands on a Battlefield holding the wave's job, unranked; sending the same wave to that Battlefield reports 0 copied and 1 already there; a real Explore search appears at the top of the holding bay with its jobs; reopening the older wave shows its job from the database.",
+      "The real search for \"content writer\" in the United States returned 2 jobs: RBC Marketing Content Writer & Strategist, and Medtronic Senior Technical Writer (labeling). Cost: 1 Apify run.",
+    ],
+    risks: [
+      "An Explore search blocks its browser tab for several minutes. If the tab is closed or navigates away, the wave is still saved and appears in the holding bay after a refresh.",
+      "Jobs are not deduplicated across waves: the same posting found by two Explore searches is stored twice (once per wave).",
+    ],
+    dataChanges: [
+      "Kept: SearchWave \"content writer\" (2 jobs, no Battlefield) and its Run row.",
+      "Removed: the test Battlefield \"Explore Promote Test\" and the 1 job copied into it.",
+    ],
+  },
 ];
 
 // Symptom-first lookup for later debugging.
@@ -322,7 +379,7 @@ const GOTCHAS = [
 ];
 
 const OPEN_ISSUES = [
-  "B2B sourcing is thin: 3 jobs from about 460 sites. The content keywords match almost nothing in the actor's index.",
+  "B2B sourcing is thin: 3 jobs from about 460 sites for the B2B Battlefield, and an Explore search for \"content writer\" found only 2. The actor's index has few content roles.",
   "AI/ML sourcing surfaces mostly Senior and Staff roles, which grade Improbable.",
   "The B2B rubric contradicts itself on senior individual-contributor roles (Fit vs Possible).",
   "Auto-Populate has no scheduler.",
@@ -330,7 +387,7 @@ const OPEN_ISSUES = [
   "The deployed Railway app is broken and GitHub auto-deploy is disconnected until the rebuild is deployed.",
   "Two lockfiles (repo root and web/) make Next.js guess the workspace root.",
   "The Auto-Rank cost estimate is not measured.",
-  "Phase 4 (Explore page and holding bay UI) is not built; its API routes exist.",
+  "Search New and Rank have not been clicked from the UI yet (their routes were tested directly in Phase 2).",
 ];
 
 // ---------------------------------------------------------------- layout
@@ -402,12 +459,12 @@ const doc = new Document({
       {
         id: "Heading1", name: "Heading 1", basedOn: "Normal", next: "Normal", quickFormat: true,
         run: { size: 30, bold: true, font: FONT, color: "1F1F1F" },
-        paragraph: { spacing: { before: 360, after: 120 }, outlineLevel: 0 },
+        paragraph: { spacing: { before: 360, after: 120 }, outlineLevel: 0, keepNext: true },
       },
       {
         id: "Heading2", name: "Heading 2", basedOn: "Normal", next: "Normal", quickFormat: true,
         run: { size: 23, bold: true, font: FONT, color: "404040" },
-        paragraph: { spacing: { before: 220, after: 80 }, outlineLevel: 1 },
+        paragraph: { spacing: { before: 220, after: 80 }, outlineLevel: 1, keepNext: true },
       },
     ],
   },
@@ -436,7 +493,7 @@ const doc = new Document({
       },
       children: [
         new Paragraph({ heading: HeadingLevel.TITLE, children: [new TextRun("KAMUI rebuild post-mortem")] }),
-        p(`Last updated ${UPDATED}, after Phase 3.`, { run: { color: "666666" } }),
+        p(`Last updated ${UPDATED}, after ${LATEST}.`, { run: { color: "666666" } }),
         p(
           "A running record of each phase of the rebuild described in kamui-rebuild-spec.md: what changed, the decisions that went beyond or against the spec, the problems found along the way, how it was verified, and what was changed in the production database. It is meant as context when debugging product flaws later. The newest phase is last. The content is generated from docs/postmortem/build.mjs."
         ),
@@ -446,7 +503,7 @@ const doc = new Document({
           "Each phase lists its commit. git show <commit> gives the exact code as it was written.",
           "Production data changes records every write made to the Railway database outside normal app use, including test data that was later removed.",
         ]),
-        h1("The system after Phase 3"),
+        h1(`The system after ${LATEST}`),
         ...bullets(SYSTEM_NOW),
         h1("Symptom lookup"),
         table(["Symptom", "Likely cause and what to do"], [3200, 5826], GOTCHAS),
