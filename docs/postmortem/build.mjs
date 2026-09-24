@@ -22,7 +22,7 @@ import {
 
 const OUT = new URL("../KAMUI-postmortem.docx", import.meta.url);
 const UPDATED = "2026-09-24";
-const LATEST = "the async search change";
+const LATEST = "the sweep cron";
 
 // ---------------------------------------------------------------- content
 
@@ -33,7 +33,7 @@ const SYSTEM_NOW = [
   "Battlefields are the organising unit: each has its own keywords, excludes, locations, caps, versioned rubric and jobs. Pages select one with ?battlefield=<slug>.",
   "Explore (/explore) runs one-off searches that are saved as SearchWaves (jobs with no Battlefield). A wave can be promoted into a Battlefield; promoted jobs are unranked copies.",
   "Every automation is off by default. Search and Rank only run when the user clicks, or when a Battlefield's Auto-Populate / Auto-Rank switch is on.",
-  "Searches are asynchronous: the search and explore routes start Apify and return a Run id; GET /api/runs/<id> reports progress and ingests the jobs once Apify finishes. The UI polls it.",
+  "Searches are asynchronous: the search and explore routes start Apify and return a Run id; GET /api/runs/<id> reports progress and ingests the jobs once Apify finishes. The UI polls it for progress; a Railway cron service calls POST /api/runs/sweep every 5 minutes so results are saved even when nobody is watching.",
   "Railway builds the repo root; the root package.json build and start scripts delegate to web/. Auto-deploy from GitHub was reconnected by the user after Phase 4.",
 ];
 
@@ -449,6 +449,62 @@ const PHASES = [
       "Kept: Explore waves 'content strategist' (3 jobs) and 'content marketing' (3 jobs), a b2b-content search (3 found, 0 new, lastSeenAt bumped on 3 jobs), and their 3 Run rows.",
     ],
   },
+  {
+    title: "After Phase 4: server-side sweep cron",
+    date: "2026-09-24",
+    commit: "c804fa4",
+    summary:
+      "Search results were saved only when a browser polled the status route, so a search nobody watched never got its jobs. Added POST /api/runs/sweep, which ingests every running search whose Apify runs have finished, protected by CRON_SECRET, and a separate Railway cron service that calls it every 5 minutes.",
+    changes: [
+      "web/app/api/runs/sweep/route.ts: POST only. Requires Authorization: Bearer <CRON_SECRET> (constant-time compare); returns 401 otherwise, and always when CRON_SECRET is unset.",
+      "web/lib/searchRuns.ts: sweepRunningSearches runs checkRun on every Run with status running (same ingest and claim as the status route). autoRankAfter moved here so the sweep and the status route both trigger Auto-Rank.",
+      "scripts/sweep.mjs: the cron service's command. POSTs to SWEEP_URL with the secret, logs the response, exits 0 on success and 1 on failure.",
+      "railway/sweep-cron.json: config for the cron service (start command node scripts/sweep.mjs, cronSchedule */5 * * * *, restart NEVER, trivial build, watchPatterns limited to the script and config).",
+    ],
+    decisions: [
+      [
+        "The status route still ingests when it sees a finished run",
+        "Otherwise a watching browser would wait up to 5 minutes for the next sweep. The claim guard makes the two callers safe together.",
+        "The sweep is the guarantee; the status route is the fast path.",
+      ],
+      [
+        "The cron is a separate Railway service with its own config file path",
+        "Railway cron services must run a command and exit, so the web service cannot be the cron. A root railway.json would be picked up by the web service by default.",
+        "The cron service's settings must point at /railway/sweep-cron.json.",
+      ],
+      [
+        "The cron calls the web service over HTTP instead of touching the database itself",
+        "One copy of the ingest logic, and Auto-Rank's after() runs on the long-lived web server.",
+        "The cron service needs SWEEP_URL and the same CRON_SECRET, and fails if the web service is down.",
+      ],
+      [
+        "Secret sent as Authorization: Bearer",
+        "The usual convention for cron callers.",
+        "A bare secret without the Bearer prefix is rejected.",
+      ],
+    ],
+    incidents: [
+      [
+        "Adding CRON_SECRET to web/.env glued it onto the end of the ANTHROPIC_API_KEY line.",
+        "web/.env had been copied from the root .env, which has no final newline, and the new line was appended with echo >>.",
+        "Split back onto its own line and verified the Anthropic key matches the root .env. Local file only; never committed.",
+      ],
+    ],
+    verification: [
+      "tsc and eslint clean; railway/sweep-cron.json parses.",
+      "Authorization: no header, a wrong secret, and the secret without Bearer all return 401; GET returns 405; the right secret with nothing running returns checked 0.",
+      "End to end: an Explore search for 'technical content' was started and never polled. After Apify finished, the Run was still running with 0 wave rows. Running scripts/sweep.mjs ingested it (Run done, 1 job, wave jobCount 1 = 1 row) and exited 0; a second run found nothing to do; the status route then reported done. With a wrong secret the script got 401 and exited 1.",
+      "Test cost: 1 Apify run. The Railway cron service itself was not created or checked here.",
+    ],
+    risks: [
+      "A Run stuck in ingesting (server died mid-ingest) is still not recovered by the sweep, which only looks at running Runs.",
+      "If CRON_SECRET differs between the two services, every sweep fails with 401 and saving falls back to browser polling only.",
+      "Railway skips a cron execution while the previous one is still running, so one very slow sweep delays the next.",
+    ],
+    dataChanges: [
+      "Kept: Explore wave 'technical content' (1 job) and its Run.",
+    ],
+  },
 ];
 
 // Symptom-first lookup for later debugging.
@@ -465,7 +521,9 @@ const GOTCHAS = [
   ["Railway deploy crashes: Cannot find module '/app/index.js'", "Railway built the repo root, whose package.json had no start script. Fixed on 2026-09-24: root build/start scripts delegate to web/. Check they still exist."],
   ["Railway build fails on tailwind, typescript or prisma not found", "web/ devDependencies were skipped in a production install. The root build script must keep npm ci --include=dev."],
   ["A search shows Saving the results... forever", "Its Run is stuck in ingesting (the server died mid-ingest). Set the Run's status back to running; the next poll ingests again."],
-  ["A search finished on Apify but its jobs never appeared", "Ingest only happens when GET /api/runs/<id> is called. Open the Battlefield or wave page, or call the route."],
+  ["A search finished on Apify but its jobs never appeared", "Check the sweep cron service's logs on Railway. Until the next sweep, opening the Battlefield or wave page (which polls GET /api/runs/<id>) also ingests it."],
+  ["The sweep cron logs sweep 401", "CRON_SECRET differs between the web service and the cron service, or the header lacks the Bearer prefix."],
+  ["The web service stops serving and runs every 5 minutes instead", "It picked up a cron config: a railway.json at the repo root, or its config file path set to railway/sweep-cron.json. Only the cron service should use that file."],
   ["Port 3000 already in use", "A previous next dev left its node process running. Stop the process listening on 3000."],
 ];
 
@@ -475,7 +533,8 @@ const OPEN_ISSUES = [
   "The B2B rubric contradicts itself on senior individual-contributor roles (Fit vs Possible).",
   "Auto-Populate has no scheduler.",
   "Manual Rank still runs inside its request; large ranks could time out on Railway.",
-  "Nothing resets a Run stuck in ingesting, and results nobody polls for eventually expire on Apify.",
+  "Nothing resets a Run stuck in ingesting.",
+  "The Railway sweep cron service has to be created by hand (see CLAUDE.md) and has not been verified on Railway.",
   "The deployed Railway app has not been verified after the deploy fix and the async search change.",
   "Two lockfiles (repo root and web/) make Next.js guess the workspace root.",
   "The Auto-Rank cost estimate is not measured.",
