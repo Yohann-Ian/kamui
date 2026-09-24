@@ -12,31 +12,62 @@ datasource db {
   provider = "postgresql"
 }
 
+model Battlefield {
+  id              String   @id @default(cuid())
+  name            String
+  slug            String   @unique
+  titleIncludes   String[]
+  titleExcludes   String[]
+  locations       String[]
+  maxBoards       Int      @default(2000)
+  maxJobs         Int      @default(200)
+  maxJobsPerBoard Int      @default(25)
+  autoPopulate    Boolean  @default(false)
+  autoRank        Boolean  @default(false)
+  archived        Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  jobs            Job[]
+  rubrics         Rubric[]
+  runs            Run[]
+}
+
 model Job {
-  id            String   @id
+  id            String       @id @default(cuid())
+  atsJobId      String
+  // null for jobs that only live in an Explore search wave
+  battlefield   Battlefield? @relation(fields: [battlefieldId], references: [id])
+  battlefieldId String?
+  searchWave    SearchWave?  @relation(fields: [searchWaveId], references: [id])
+  searchWaveId  String?
   source        String
   company       String
   title         String
   location      String?
   locationBin   String?
-  track         String
   url           String
   description   String?
-  firstSeen     DateTime @default(now())
+  firstSeen     DateTime     @default(now())
+  lastSeenAt    DateTime     @default(now())
+  closed        Boolean      @default(false)
+  closedAt      DateTime?
+  dismissed     Boolean      @default(false)
   raw           Json?
   judgments     Judgment[]
   application   Application?
   statusNotes   StatusNote[]
+
+  @@unique([battlefieldId, atsJobId])
 }
 
 model Rubric {
-  id        String     @id @default(cuid())
-  track     String
-  version   Int
-  active    Boolean    @default(false)
-  body      String
-  createdAt DateTime   @default(now())
-  judgments Judgment[]
+  id            String      @id @default(cuid())
+  battlefield   Battlefield @relation(fields: [battlefieldId], references: [id])
+  battlefieldId String
+  version       Int
+  active        Boolean     @default(false)
+  body          String
+  createdAt     DateTime    @default(now())
+  judgments     Judgment[]
 }
 
 model Judgment {
@@ -63,15 +94,6 @@ model Application {
   updatedAt DateTime @updatedAt
 }
 
-model Batch {
-  id          String   @id @default(cuid())
-  batchId     String   @unique
-  track       String
-  status      String   @default("pending")
-  submittedAt DateTime @default(now())
-}
-
-
 model StatusNote {
   id        String   @id @default(cuid())
   job       Job      @relation(fields: [jobId], references: [id])
@@ -81,4 +103,27 @@ model StatusNote {
   createdAt DateTime @default(now())
 
   @@unique([jobId, stage])
+}
+
+model SearchWave {
+  id        String   @id @default(cuid())
+  query     String
+  locations String[]
+  createdAt DateTime @default(now())
+  jobCount  Int      @default(0)
+  jobs      Job[]
+}
+
+model Run {
+  id            String       @id @default(cuid())
+  battlefield   Battlefield? @relation(fields: [battlefieldId], references: [id])
+  battlefieldId String?
+  kind          String // "search" | "rank"
+  status        String       @default("running") // running | done | failed
+  jobsFound     Int          @default(0)
+  jobsNew       Int          @default(0)
+  jobsRanked    Int          @default(0)
+  error         String?
+  startedAt     DateTime     @default(now())
+  finishedAt    DateTime?
 }
