@@ -37,7 +37,10 @@ Two parts around one Postgres database on Railway.
   without paying for it again.
 - **Run** — an audit row for every search and rank, so spend is visible. A search Run
   holds its Apify run ids (`apifyRunIds`, one per location) and, for Explore, its
-  `searchWaveId`. Status: running -> ingesting -> done | failed.
+  `searchWaveId`. Status: running -> ingesting -> done | failed. While ingesting,
+  the saver stamps `heartbeatAt` every 5 seconds; the sweep hands a Run back to
+  running only if it is ingesting with a stamp over 2 minutes old (or none), so a
+  crashed save is retried and a slow one is never reclaimed.
 
 ## Key conventions
 

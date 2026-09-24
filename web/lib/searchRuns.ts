@@ -66,14 +66,52 @@ export async function startExplore(query: string, locations: string[]) {
   return { run: launched, wave };
 }
 
+// While a Run is ingesting, its saver stamps heartbeatAt this often. The sweep
+// treats a stamp older than STALE_AFTER_MS as a dead saver and retries the Run.
+const HEARTBEAT_MS = 5_000;
+const STALE_AFTER_MS = 2 * 60_000;
+
+function startHeartbeat(runId: string) {
+  const timer = setInterval(() => {
+    prisma.run
+      .updateMany({ where: { id: runId, status: "ingesting" }, data: { heartbeatAt: new Date() } })
+      .catch((e) => console.error("heartbeat failed", runId, e));
+  }, HEARTBEAT_MS);
+  return () => clearInterval(timer);
+}
+
+// Hands Runs whose saver died mid-ingest back to "running" so they are retried.
+// A slow save keeps stamping heartbeatAt and is never reclaimed. A Run ingesting
+// with no stamp at all predates heartbeats, so it is treated as stale too.
+export async function reclaimStaleIngests() {
+  const { count } = await prisma.run.updateMany({
+    where: {
+      kind: "search",
+      status: "ingesting",
+      OR: [{ heartbeatAt: { lt: new Date(Date.now() - STALE_AFTER_MS) } }, { heartbeatAt: null }],
+    },
+    data: { status: "running" },
+  });
+  return count;
+}
+
 async function ingest(run: Run, states: RunState[]) {
   // Claim the Run so two pollers can never ingest the same results twice.
   const claimed = await prisma.run.updateMany({
     where: { id: run.id, status: "running" },
-    data: { status: "ingesting" },
+    data: { status: "ingesting", heartbeatAt: new Date() },
   });
   if (claimed.count === 0) return { run: await prisma.run.findUniqueOrThrow({ where: { id: run.id } }), newJobIds: [] };
 
+  const stopHeartbeat = startHeartbeat(run.id);
+  try {
+    return await save(run, states);
+  } finally {
+    stopHeartbeat();
+  }
+}
+
+async function save(run: Run, states: RunState[]) {
   const ok = states.filter((s) => s.status === "SUCCEEDED" && s.datasetId);
   const bad = states.filter((s) => s.status !== "SUCCEEDED");
   const problems = [
@@ -94,7 +132,10 @@ async function ingest(run: Run, states: RunState[]) {
     if (run.battlefieldId) {
       newJobIds = (await saveToBattlefield(run.battlefieldId, jobs)).newJobIds;
     } else if (run.searchWaveId) {
+      // Replace rather than append, so a retried save after a crash that had
+      // already committed cannot store the wave's jobs twice.
       await prisma.$transaction([
+        prisma.job.deleteMany({ where: { searchWaveId: run.searchWaveId, battlefieldId: null } }),
         prisma.job.createMany({ data: jobs.map((j) => ({ ...j, searchWaveId: run.searchWaveId })) }),
         prisma.searchWave.update({ where: { id: run.searchWaveId }, data: { jobCount: jobs.length } }),
       ]);
@@ -173,8 +214,10 @@ export async function autoRankAfter(battlefieldId: string | null, newJobIds: str
 
 // Checks every running search and ingests the ones whose Apify runs have
 // finished, so saving never depends on a browser polling. Uses checkRun, so
-// the same claim guard applies if a browser polls the same Run at once.
+// the same claim guard applies if a browser polls the same Run at once. Runs
+// whose saver died mid-ingest are reclaimed first, so they are retried here.
 export async function sweepRunningSearches() {
+  const reclaimed = await reclaimStaleIngests();
   const running = await prisma.run.findMany({
     where: { kind: "search", status: "running" },
     orderBy: { startedAt: "asc" },
@@ -190,5 +233,5 @@ export async function sweepRunningSearches() {
       results.push({ runId: id, status: "error", error: e instanceof Error ? e.message : String(e) });
     }
   }
-  return results;
+  return { reclaimed, results };
 }

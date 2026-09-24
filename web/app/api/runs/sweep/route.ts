@@ -22,8 +22,9 @@ export async function POST(request: Request) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
   try {
-    const results = await sweepRunningSearches();
+    const { reclaimed, results } = await sweepRunningSearches();
     return Response.json({
+      reclaimed,
       checked: results.length,
       finished: results.filter((r) => r.status !== "running").length,
       results,
