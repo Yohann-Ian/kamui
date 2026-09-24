@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { setStatus, saveNote } from "../actions";
-import BattlefieldSwitch from "../BattlefieldSwitch";
+import BattlefieldSwitch, { type BattlefieldLink } from "../BattlefieldSwitch";
 
 const STAGES = ["Aim", "Applied", "Screening", "Interview", "Offer", "Rejected", "Dropped"];
 
@@ -21,7 +21,15 @@ type Job = {
   notes: Record<string, string>;
 };
 
-export default function TrackingBoard({ jobs, track }: { jobs: Job[]; track: string }) {
+export default function TrackingBoard({
+  jobs,
+  battlefields,
+  current,
+}: {
+  jobs: Job[];
+  battlefields: BattlefieldLink[];
+  current: string;
+}) {
   const [selectedId, setSelectedId] = useState(jobs[0]?.id ?? null);
   const selected = jobs.find((j) => j.id === selectedId) ?? null;
 
@@ -29,11 +37,11 @@ export default function TrackingBoard({ jobs, track }: { jobs: Job[]; track: str
     <main className="mx-auto flex max-w-6xl gap-6 px-6 py-10">
       <section className="min-w-0 flex-1">
         <div className="mb-4 flex items-center justify-between border-b border-gray-200 pb-3">
-          <BattlefieldSwitch current={track} basePath="/tracking" />
+          <BattlefieldSwitch battlefields={battlefields} current={current} basePath="/tracking" />
           <div className="flex items-baseline gap-4">
             <span className="text-sm text-gray-500">{jobs.length} tracked</span>
             <Link
-              href={`/?track=${track}`}
+              href={`/?battlefield=${current}`}
               className="text-sm text-gray-500 hover:text-gray-900"
             >
               Discovery

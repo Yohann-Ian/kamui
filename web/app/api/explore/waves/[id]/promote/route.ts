@@ -1,23 +1,12 @@
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import { getBattlefield } from "@/lib/jobs";
+import { uniqueSlug } from "@/lib/battlefields";
 import { HttpError, errorResponse, readJson } from "@/lib/http";
 
 const strings = (v: unknown) =>
   Array.isArray(v) ? v.filter((s): s is string => typeof s === "string" && s.trim() !== "") : undefined;
 const int = (v: unknown) => (Number.isInteger(v) && (v as number) > 0 ? (v as number) : undefined);
-
-function slugify(name: string) {
-  return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "battlefield";
-}
-
-async function uniqueSlug(name: string) {
-  const base = slugify(name);
-  for (let n = 1; ; n++) {
-    const slug = n === 1 ? base : `${base}-${n}`;
-    if (!(await prisma.battlefield.findUnique({ where: { slug } }))) return slug;
-  }
-}
 
 // Body: { battlefieldId } or { newBattlefield: { name, titleIncludes?, titleExcludes?,
 // locations?, maxBoards?, maxJobs?, maxJobsPerBoard? } }.

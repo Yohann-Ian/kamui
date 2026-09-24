@@ -39,7 +39,11 @@ Two parts around one Postgres database on Railway.
 
 ## Key conventions
 
-- **Battlefields**: `ai-ml` and `b2b-content` so far.
+- **Battlefields**: created, edited and archived from the UI (`/battlefields/new`,
+  `/battlefields/<slug>/settings`). Pages pick one with `?battlefield=<slug>`, falling
+  back to the oldest non-archived one. Slugs never change after creation.
+- **Grades shown**: the judgment under the active rubric, else the newest one from an
+  older version (labelled with its rubric version).
 - **Stages**: Aim, Applied, Screening, Interview, Offer, Rejected, Dropped.
   Everything from Applied onward is hidden from Discovery but still counted.
 - **Every automation defaults to OFF.** Searching and ranking both cost money, so
@@ -67,10 +71,17 @@ Two parts around one Postgres database on Railway.
     web/app/api/explore/waves/[id]/promote      POST  copy a wave into a Battlefield
     web/app/api/jobs/[id]/check-closed          GET   on-demand closed check
     (Battlefield routes accept an id or a slug)
+    web/lib/battlefields.ts     slugs, resolveBattlefield (?battlefield=), pickJudgment
     web/app/page.tsx            Discovery (server)
-    web/app/JobBoard.tsx        Discovery (client)
-    web/app/actions.ts          server actions: setStatus, saveNote
-    web/app/BattlefieldSwitch.tsx
+    web/app/JobBoard.tsx        Discovery (client): sort/filter, dismiss, closed check
+    web/app/Toolbar.tsx         Search New and Rank (with rank-preview confirmation)
+    web/app/actions.ts          server actions: setStatus, saveNote, dismissJob
+    web/app/BattlefieldSwitch.tsx       switcher, reads Battlefields from the database
+    web/app/battlefields/actions.ts     create/update Battlefield, toggles, saveRubric, archive
+    web/app/battlefields/BattlefieldForm.tsx       shared create/edit form
+    web/app/battlefields/new/page.tsx              New Battlefield (+ restore archived)
+    web/app/battlefields/[slug]/settings/page.tsx  Settings (server)
+    web/app/battlefields/[slug]/settings/Settings.tsx  Settings (client): toggles, rubric editor
     web/app/tracking/page.tsx           Tracking (server)
     web/app/tracking/TrackingBoard.tsx  Tracking (client)
 
@@ -88,6 +99,8 @@ Two parts around one Postgres database on Railway.
 - `.env` at the repo root holds `DATABASE_URL`, `APIFY_TOKEN`, `ANTHROPIC_API_KEY`
   (read by the Prisma CLI). `web/.env` needs all three too, since Next.js only reads
   env files from `web/`. Both are gitignored, never commit them.
+- In some sandboxed shells `next dev` (Turbopack) panics with 0xc0000142 when it
+  spawns the PostCSS worker. `npx next dev --webpack` works around it.
 - `prisma migrate dev` refuses to run in a non-interactive shell. Write the migration
   SQL by hand (`prisma migrate diff` drafts it) and apply it with `prisma migrate deploy`.
 
@@ -118,6 +131,6 @@ to 24h turnaround).
 
 ## Still to build
 
-Follow `kamui-rebuild-spec.md`: Phase 3 (Battlefield management UI) and Phase 4
-(Explore and the holding bay). The Discovery and Tracking pages still query the old
-`track` column and are broken until Phase 3. After that: redeploy `web` to Railway.
+Follow `kamui-rebuild-spec.md` Phase 4 (Explore page and the holding bay; the API
+routes already exist). Then redeploy `web` to Railway, including a scheduled job for
+Auto-Populate, which is stored but not run by anything yet.

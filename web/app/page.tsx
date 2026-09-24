@@ -1,44 +1,91 @@
+import Link from "next/link";
 import { prisma } from "../lib/prisma";
+import { daysSince, pickJudgment, resolveBattlefield } from "../lib/battlefields";
+import { APPLIED_STAGES } from "../lib/jobs";
 import JobBoard from "./JobBoard";
 
 export const dynamic = "force-dynamic";
 
-const HIDDEN_STAGES = ["Applied", "Screening", "Interview", "Offer", "Rejected", "Dropped"];
-
 export default async function Home({
   searchParams,
 }: {
-  searchParams: Promise<{ track?: string }>;
+  searchParams: Promise<{ battlefield?: string }>;
 }) {
   const params = await searchParams;
-  const track = params.track ?? "ai-ml";
+  const { all, current } = await resolveBattlefield(params.battlefield);
 
-  const jobs = await prisma.job.findMany({
-    where: { track },
-    include: { judgments: true, application: true, statusNotes: true },
-    take: 200,
-  });
+  if (!current) {
+    return (
+      <main className="mx-auto max-w-6xl px-6 py-10">
+        <p className="text-sm text-gray-500">
+          No Battlefields yet.{" "}
+          <Link href="/battlefields/new" className="text-gray-900 underline">
+            Create one
+          </Link>{" "}
+          to start searching.
+        </p>
+      </main>
+    );
+  }
+
+  const [rubric, jobs] = await Promise.all([
+    prisma.rubric.findFirst({ where: { battlefieldId: current.id, active: true } }),
+    prisma.job.findMany({
+      where: { battlefieldId: current.id, dismissed: false },
+      include: {
+        judgments: { include: { rubric: { select: { version: true } } } },
+        application: true,
+        statusNotes: true,
+      },
+      orderBy: { lastSeenAt: "desc" },
+      take: 500,
+    }),
+  ]);
 
   const hidden = jobs.filter(
-    (job) => job.application && HIDDEN_STAGES.includes(job.application.status)
+    (job) => job.application && APPLIED_STAGES.includes(job.application.status)
   );
   const visible = jobs.filter(
-    (job) => !job.application || !HIDDEN_STAGES.includes(job.application.status)
+    (job) => !job.application || !APPLIED_STAGES.includes(job.application.status)
   );
 
-  const data = visible.map((job) => ({
-    id: job.id,
-    title: job.title,
-    company: job.company,
-    location: job.location,
-    url: job.url,
-    description: job.description,
-    grade: job.judgments[0]?.grade ?? null,
-    score: job.judgments[0]?.score ?? null,
-    reason: job.judgments[0]?.reason ?? null,
-    status: job.application?.status ?? null,
-    notes: Object.fromEntries(job.statusNotes.map((n) => [n.stage, n.note])),
-  }));
+  const data = visible.map((job) => {
+    const judgment = pickJudgment(job.judgments, rubric?.id);
+    return {
+      id: job.id,
+      title: job.title,
+      company: job.company,
+      location: job.location,
+      url: job.url,
+      description: job.description,
+      grade: judgment?.grade ?? null,
+      score: judgment?.score ?? null,
+      reason: judgment?.reason ?? null,
+      // set when the grade came from an older rubric version
+      staleRubricVersion:
+        judgment && judgment.rubricId !== rubric?.id ? judgment.rubric.version : null,
+      status: job.application?.status ?? null,
+      notes: Object.fromEntries(job.statusNotes.map((n) => [n.stage, n.note])),
+      closed: job.closed,
+      lastSeenDays: daysSince(job.lastSeenAt),
+    };
+  });
 
-  return <JobBoard jobs={data} hiddenCount={hidden.length} track={track} />;
+  return (
+    <JobBoard
+      key={current.slug}
+      jobs={data}
+      hiddenCount={hidden.length}
+      battlefields={all}
+      battlefield={{
+        id: current.id,
+        slug: current.slug,
+        name: current.name,
+        titleIncludes: current.titleIncludes,
+        locations: current.locations,
+        archived: current.archived,
+        rubricVersion: rubric?.version ?? null,
+      }}
+    />
+  );
 }

@@ -2,33 +2,38 @@
 
 import Link from "next/link";
 
-export const TRACKS = [
-  { id: "ai-ml", label: "AI/ML Engineer" },
-  { id: "b2b-content", label: "B2B Content" },
-];
+export type BattlefieldLink = { slug: string; name: string };
 
 export default function BattlefieldSwitch({
+  battlefields,
   current,
   basePath,
 }: {
+  battlefields: BattlefieldLink[];
   current: string;
   basePath: string;
 }) {
   return (
-    <div className="flex gap-1">
-      {TRACKS.map((t) => (
+    <div className="flex flex-wrap items-center gap-1">
+      {battlefields.map((b) => (
         <Link
-          key={t.id}
-          href={`${basePath}?track=${t.id}`}
+          key={b.slug}
+          href={`${basePath}?battlefield=${b.slug}`}
           className={`rounded-md px-3 py-1 text-sm ${
-            current === t.id
+            current === b.slug
               ? "bg-gray-900 text-white"
               : "text-gray-500 hover:bg-gray-100 hover:text-gray-900"
           }`}
         >
-          {t.label}
+          {b.name}
         </Link>
       ))}
+      <Link
+        href="/battlefields/new"
+        className="rounded-md px-2 py-1 text-sm text-gray-400 hover:bg-gray-100 hover:text-gray-900"
+      >
+        + New Battlefield
+      </Link>
     </div>
   );
 }
