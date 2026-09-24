@@ -22,7 +22,7 @@ import {
 
 const OUT = new URL("../KAMUI-postmortem.docx", import.meta.url);
 const UPDATED = "2026-09-24";
-const LATEST = "Phase 4";
+const LATEST = "the async search change";
 
 // ---------------------------------------------------------------- content
 
@@ -33,7 +33,8 @@ const SYSTEM_NOW = [
   "Battlefields are the organising unit: each has its own keywords, excludes, locations, caps, versioned rubric and jobs. Pages select one with ?battlefield=<slug>.",
   "Explore (/explore) runs one-off searches that are saved as SearchWaves (jobs with no Battlefield). A wave can be promoted into a Battlefield; promoted jobs are unranked copies.",
   "Every automation is off by default. Search and Rank only run when the user clicks, or when a Battlefield's Auto-Populate / Auto-Rank switch is on.",
-  "Railway auto-deploy from GitHub was disconnected by the user during Phase 1 and has not been reconnected. The deployed web service is running pre-Phase-1 code against the new schema, so it is broken.",
+  "Searches are asynchronous: the search and explore routes start Apify and return a Run id; GET /api/runs/<id> reports progress and ingests the jobs once Apify finishes. The UI polls it.",
+  "Railway builds the repo root; the root package.json build and start scripts delegate to web/. Auto-deploy from GitHub was reconnected by the user after Phase 4.",
 ];
 
 const PHASES = [
@@ -362,6 +363,92 @@ const PHASES = [
       "Removed: the test Battlefield \"Explore Promote Test\" and the 1 job copied into it.",
     ],
   },
+  {
+    title: "After Phase 4: Railway deploy fix and asynchronous searches",
+    date: "2026-09-24",
+    commit: "140be22, 034cc7d",
+    summary:
+      "The first Railway deploy after the rebuild crashed, and once it ran, searches timed out because each request waited for the Apify sweep. The deploy was fixed with root build and start scripts. Searches were split in two: the search and explore routes start Apify and return at once, and a status route reports progress and saves the jobs when Apify finishes.",
+    changes: [
+      "package.json (repo root): build installs web/ dependencies with --include=dev and runs web's build; start runs next start in web/ (140be22).",
+      "prisma/migrations/20260924140000_async_search_runs: additive. Run gains apifyRunIds (text[]) and searchWaveId (link to SearchWave).",
+      "web/lib/apify.ts rewritten on the apify-client package: startSearch (actor.start, one run per location, Promise.allSettled), getRuns, readJobs.",
+      "web/lib/searchRuns.ts (new): startBattlefieldSearch, startExplore, and checkRun, which reports progress or ingests once every Apify run has finished.",
+      "POST /api/battlefields/[id]/search and POST /api/explore now return 202 with a runId (and waveId for Explore). New GET /api/runs/[id].",
+      "UI: web/app/useRunStatus.ts polls the status route every 5 seconds. The Discovery toolbar and the Explore wave view show elapsed time and Apify's progress message, refresh when done, and resume after a reload. The holding bay marks waves that are searching or failed.",
+      "web/next.config.ts: apify-client in serverExternalPackages.",
+    ],
+    decisions: [
+      [
+        "The Run stores a list of Apify run ids, not one",
+        "A Battlefield with several locations starts one Apify run per location.",
+        "The status route waits for all of them before ingesting.",
+      ],
+      [
+        "One status route, /api/runs/[id], for Battlefield searches and Explore",
+        "The Run row already knows its Battlefield or wave.",
+        "",
+      ],
+      [
+        "Ingestion happens when someone polls, not in a background worker",
+        "There is no worker process. The UI polls while a search runs and resumes polling on page load.",
+        "If nobody opens the page, results wait in Apify until someone does (see risks).",
+      ],
+      [
+        "The first poll after Apify finishes claims the Run (running to ingesting) before saving",
+        "Several tabs can poll at once; without the claim an Explore wave would store its jobs twice.",
+        "Other pollers see ingesting and keep polling.",
+      ],
+      [
+        "One running search per Battlefield",
+        "A second Search New click would pay for the same sweep twice.",
+        "The search route returns the running Run instead.",
+      ],
+      [
+        "Partial failure keeps what succeeded",
+        "Results from locations whose Apify run succeeded are paid for.",
+        "The Run is done, with the failed runs listed in its error field.",
+      ],
+      [
+        "Explore creates its wave when the search starts; failed waves are kept and marked failed",
+        "The holding bay can show a search in progress, and a failure stays visible instead of vanishing.",
+        "Waves saved before this change have no linked Run and are treated as done.",
+      ],
+      [
+        "Auto-Rank runs in after() from the status route",
+        "Ranking must not hold the status request open either.",
+        "The status response says autoRank: started; the rank writes its own Run.",
+      ],
+    ],
+    incidents: [
+      [
+        "Railway deploy crashed: Cannot find module '/app/index.js'.",
+        "Railway builds the repo root. The root package.json only existed for the Prisma CLI: no start script and main set to index.js, so Railway ran node index.js.",
+        "Root build and start scripts that delegate to web/ (140be22). Tested from a clean clone with NODE_ENV=production: npm ci, npm run build, npm start on a custom PORT.",
+      ],
+      [
+        "Searches timed out on Railway (reported by the user).",
+        "The search route waited for the whole Apify sweep inside the request.",
+        "Asynchronous searches (034cc7d).",
+      ],
+    ],
+    verification: [
+      "tsc, eslint and next build clean.",
+      "API: POST /api/explore returned the run and wave ids immediately; the status route reported 'Scanned 202/500 career sites, 2 matching jobs so far' while Apify ran.",
+      "Concurrency: after Apify finished, 5 simultaneous status calls produced exactly one ingest (1 returned done with 3 jobs, 4 returned ingesting); the wave's jobCount (3) matched its stored rows (3).",
+      "Browser: Search New on b2b-content showed progress within seconds and locked both buttons; a reload mid-search resumed at 'Scanned 69/500'; it finished with 'Found 3, 0 new, 0 you have already applied to' and refreshed the list. An Explore search opened its wave at once, showed 'searching...' in the holding bay, and filled in 3 jobs when done. No console errors.",
+      "Test cost: 3 Apify runs. The deployed Railway app itself was not checked here.",
+    ],
+    risks: [
+      "A Run can stay in ingesting forever if the server dies mid-ingest; nothing resets it. Fix by hand: set its status back to running and poll again.",
+      "Results are only saved when someone polls. Apify deletes unnamed run datasets after its retention period, so a search nobody looks at for long enough is lost. The Auto-Populate scheduler must poll the status route.",
+      "Manual Rank still grades inside its request (5 at a time). Ranking hundreds of jobs could hit Railway's request timeout.",
+    ],
+    dataChanges: [
+      "Applied migration 20260924140000_async_search_runs (additive).",
+      "Kept: Explore waves 'content strategist' (3 jobs) and 'content marketing' (3 jobs), a b2b-content search (3 found, 0 new, lastSeenAt bumped on 3 jobs), and their 3 Run rows.",
+    ],
+  },
 ];
 
 // Symptom-first lookup for later debugging.
@@ -377,6 +464,8 @@ const GOTCHAS = [
   ["next dev panics with 0xc0000142", "Turbopack could not spawn its PostCSS worker. Use npx next dev --webpack."],
   ["Railway deploy crashes: Cannot find module '/app/index.js'", "Railway built the repo root, whose package.json had no start script. Fixed on 2026-09-24: root build/start scripts delegate to web/. Check they still exist."],
   ["Railway build fails on tailwind, typescript or prisma not found", "web/ devDependencies were skipped in a production install. The root build script must keep npm ci --include=dev."],
+  ["A search shows Saving the results... forever", "Its Run is stuck in ingesting (the server died mid-ingest). Set the Run's status back to running; the next poll ingests again."],
+  ["A search finished on Apify but its jobs never appeared", "Ingest only happens when GET /api/runs/<id> is called. Open the Battlefield or wave page, or call the route."],
   ["Port 3000 already in use", "A previous next dev left its node process running. Stop the process listening on 3000."],
 ];
 
@@ -385,11 +474,12 @@ const OPEN_ISSUES = [
   "AI/ML sourcing surfaces mostly Senior and Staff roles, which grade Improbable.",
   "The B2B rubric contradicts itself on senior individual-contributor roles (Fit vs Possible).",
   "Auto-Populate has no scheduler.",
-  "Long synchronous search requests versus hosting request timeouts (unchecked on Railway).",
-  "The deployed Railway app is broken and GitHub auto-deploy is disconnected until the rebuild is deployed.",
+  "Manual Rank still runs inside its request; large ranks could time out on Railway.",
+  "Nothing resets a Run stuck in ingesting, and results nobody polls for eventually expire on Apify.",
+  "The deployed Railway app has not been verified after the deploy fix and the async search change.",
   "Two lockfiles (repo root and web/) make Next.js guess the workspace root.",
   "The Auto-Rank cost estimate is not measured.",
-  "Search New and Rank have not been clicked from the UI yet (their routes were tested directly in Phase 2).",
+  "Rank has not been clicked from the UI yet (its route was tested directly in Phase 2). Search New has.",
 ];
 
 // ---------------------------------------------------------------- layout
