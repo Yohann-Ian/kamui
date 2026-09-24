@@ -2,6 +2,7 @@
 
 import { prisma } from "../../lib/prisma";
 import { uniqueSlug } from "../../lib/battlefields";
+import { copyWaveJobs } from "../../lib/waves";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
@@ -49,7 +50,10 @@ export async function createBattlefield(_prev: FormState, formData: FormData): P
   const fields = readSearchFields(formData);
   if (!fields.data) return { error: fields.error };
   const slug = await uniqueSlug(fields.data.name);
-  await prisma.battlefield.create({ data: { ...fields.data, slug } });
+  const battlefield = await prisma.battlefield.create({ data: { ...fields.data, slug } });
+  // Created from an Explore wave: seed it with that wave's jobs, unranked
+  const fromWave = String(formData.get("fromWave") ?? "");
+  if (fromWave) await copyWaveJobs(fromWave, battlefield.id);
   revalidatePath("/", "layout");
   redirect(`/?battlefield=${slug}`);
 }

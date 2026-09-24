@@ -112,6 +112,9 @@ export default function JobBoard({
             >
               Tracking
             </Link>
+            <Link href="/explore" className="text-sm text-gray-500 hover:text-gray-900">
+              Explore
+            </Link>
           </div>
         </div>
 

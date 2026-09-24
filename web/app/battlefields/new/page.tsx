@@ -5,11 +5,16 @@ import BattlefieldForm from "../BattlefieldForm";
 
 export const dynamic = "force-dynamic";
 
-export default async function NewBattlefield() {
-  const archived = await prisma.battlefield.findMany({
-    where: { archived: true },
-    orderBy: { name: "asc" },
-  });
+export default async function NewBattlefield({
+  searchParams,
+}: {
+  searchParams: Promise<{ fromWave?: string }>;
+}) {
+  const { fromWave } = await searchParams;
+  const [archived, wave] = await Promise.all([
+    prisma.battlefield.findMany({ where: { archived: true }, orderBy: { name: "asc" } }),
+    fromWave ? prisma.searchWave.findUnique({ where: { id: fromWave } }) : null,
+  ]);
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-10">
@@ -18,17 +23,22 @@ export default async function NewBattlefield() {
       </Link>
       <h1 className="mb-1 mt-3 text-xl font-medium">New Battlefield</h1>
       <p className="mb-6 text-sm text-gray-500">
-        Nothing runs when you create it. You choose when to search and when to rank.
+        {wave
+          ? `Seeded from the Explore search "${wave.query}". Its ${wave.jobCount} ${
+              wave.jobCount === 1 ? "job is" : "jobs are"
+            } copied in when you create it, unranked. Nothing else runs.`
+          : "Nothing runs when you create it. You choose when to search and when to rank."}
       </p>
 
       <BattlefieldForm
         action={createBattlefield}
         submitLabel="Create Battlefield"
+        hidden={wave ? { fromWave: wave.id } : {}}
         defaults={{
-          name: "",
-          titleIncludes: [],
+          name: wave ? wave.query.charAt(0).toUpperCase() + wave.query.slice(1) : "",
+          titleIncludes: wave ? [wave.query] : [],
           titleExcludes: [],
-          locations: ["United States"],
+          locations: wave?.locations.length ? wave.locations : ["United States"],
           maxBoards: 2000,
           maxJobs: 200,
           maxJobsPerBoard: 25,

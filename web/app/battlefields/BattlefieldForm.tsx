@@ -21,15 +21,20 @@ export default function BattlefieldForm({
   action,
   defaults,
   submitLabel,
+  hidden = {},
 }: {
   action: (prev: FormState, formData: FormData) => Promise<FormState>;
   defaults: SearchFields;
   submitLabel: string;
+  hidden?: Record<string, string>;
 }) {
   const [state, formAction, pending] = useActionState(action, {});
 
   return (
     <form action={formAction} className="space-y-5">
+      {Object.entries(hidden).map(([name, value]) => (
+        <input key={name} type="hidden" name={name} value={value} />
+      ))}
       <div>
         <label className={label} htmlFor="name">
           Name

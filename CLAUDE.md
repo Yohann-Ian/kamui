@@ -77,6 +77,7 @@ Two parts around one Postgres database on Railway.
     web/app/api/jobs/[id]/check-closed          GET   on-demand closed check
     (Battlefield routes accept an id or a slug)
     web/lib/battlefields.ts     slugs, resolveBattlefield (?battlefield=), pickJudgment
+    web/lib/waves.ts            waveJobs, copyWaveJobs (promote a wave into a Battlefield)
     web/app/page.tsx            Discovery (server)
     web/app/JobBoard.tsx        Discovery (client): sort/filter, dismiss, closed check
     web/app/Toolbar.tsx         Search New and Rank (with rank-preview confirmation)
@@ -87,6 +88,8 @@ Two parts around one Postgres database on Railway.
     web/app/battlefields/new/page.tsx              New Battlefield (+ restore archived)
     web/app/battlefields/[slug]/settings/page.tsx  Settings (server)
     web/app/battlefields/[slug]/settings/Settings.tsx  Settings (client): toggles, rubric editor
+    web/app/explore/page.tsx    Explore (server): holding bay of saved waves, ?wave=<id>
+    web/app/explore/Explore.tsx Explore (client): search form, wave jobs, promote
     web/app/tracking/page.tsx           Tracking (server)
     web/app/tracking/TrackingBoard.tsx  Tracking (client)
 
@@ -136,6 +139,6 @@ to 24h turnaround).
 
 ## Still to build
 
-Follow `kamui-rebuild-spec.md` Phase 4 (Explore page and the holding bay; the API
-routes already exist). Then redeploy `web` to Railway, including a scheduled job for
-Auto-Populate, which is stored but not run by anything yet.
+All four phases of `kamui-rebuild-spec.md` are built. Next: redeploy `web` to
+Railway, including a scheduled job for Auto-Populate, which is stored but not run by
+anything yet. See the Open issues list in `docs/KAMUI-postmortem.docx`.
