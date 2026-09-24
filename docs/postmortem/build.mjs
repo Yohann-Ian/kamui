@@ -375,6 +375,8 @@ const GOTCHAS = [
   ["Rank says 0 unranked after a new rubric version", "It should not: a new version makes every job unranked for that version. Check that saveRubric deactivated the old version."],
   ["Env var missing in the web app", "Next.js only reads web/.env. The root .env is only for the Prisma CLI."],
   ["next dev panics with 0xc0000142", "Turbopack could not spawn its PostCSS worker. Use npx next dev --webpack."],
+  ["Railway deploy crashes: Cannot find module '/app/index.js'", "Railway built the repo root, whose package.json had no start script. Fixed on 2026-09-24: root build/start scripts delegate to web/. Check they still exist."],
+  ["Railway build fails on tailwind, typescript or prisma not found", "web/ devDependencies were skipped in a production install. The root build script must keep npm ci --include=dev."],
   ["Port 3000 already in use", "A previous next dev left its node process running. Stop the process listening on 3000."],
 ];
 

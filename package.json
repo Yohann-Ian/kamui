@@ -2,9 +2,9 @@
   "name": "kamui",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "npm ci --prefix web --include=dev && npm run build --prefix web",
+    "start": "npm run start --prefix web",
     "postinstall": "prisma skills sync || exit 0"
   },
   "keywords": [],

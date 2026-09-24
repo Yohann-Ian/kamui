@@ -109,6 +109,12 @@ Two parts around one Postgres database on Railway.
   env files from `web/`. Both are gitignored, never commit them.
 - In some sandboxed shells `next dev` (Turbopack) panics with 0xc0000142 when it
   spawns the PostCSS worker. `npx next dev --webpack` works around it.
+- **Railway builds from the repo root.** The root `package.json` `build` script
+  installs `web/` dependencies (with `--include=dev`, since Tailwind, TypeScript and
+  the Prisma CLI are devDependencies) and runs `web`'s build; `start` runs
+  `next start` in `web/`, which listens on `PORT`. Without these, Railway runs
+  `node index.js` and crashes with "Cannot find module '/app/index.js'". The web
+  service needs `DATABASE_URL`, `APIFY_TOKEN` and `ANTHROPIC_API_KEY` set.
 - `prisma migrate dev` refuses to run in a non-interactive shell. Write the migration
   SQL by hand (`prisma migrate diff` drafts it) and apply it with `prisma migrate deploy`.
 
