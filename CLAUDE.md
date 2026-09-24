@@ -59,8 +59,11 @@ Two parts around one Postgres database on Railway.
   out). The search and explore routes start the Apify runs and return a Run id at
   once. `GET /api/runs/<id>` reports progress and, on the first call after every Apify
   run has finished, ingests the jobs (it claims the Run with a status update, so
-  concurrent polls cannot ingest twice). The UI polls it every 5 seconds and resumes
-  polling on page load. Auto-Rank runs in `after()` once the response is sent.
+  concurrent callers cannot ingest twice). The UI polls it every 5 seconds to show
+  progress. Saving does not depend on the UI: `POST /api/runs/sweep` (guarded by
+  `Authorization: Bearer $CRON_SECRET`) runs the same check on every running search,
+  and a separate Railway cron service calls it every 5 minutes. Auto-Rank runs in
+  `after()` once the response is sent.
 - **Post-mortem log**: `docs/KAMUI-postmortem.docx` records every rebuild phase
   (changes, decisions and spec deviations, problems found, verification, risks,
   production data changes). After each phase completes, add its entry to
@@ -83,6 +86,9 @@ Two parts around one Postgres database on Railway.
     web/app/api/battlefields/[id]/rank-preview  GET   { unranked, alreadyRanked }
     web/app/api/explore                         POST  { query, locations } -> { runId, waveId } (202)
     web/app/api/runs/[id]                       GET   search progress; ingests when Apify is done
+    web/app/api/runs/sweep                      POST  ingest every finished search (Bearer CRON_SECRET)
+    scripts/sweep.mjs           the cron service's command: POSTs to SWEEP_URL, then exits
+    railway/sweep-cron.json     config for the Railway cron service (every 5 minutes)
     web/app/api/explore/waves/[id]/promote      POST  copy a wave into a Battlefield
     web/app/api/jobs/[id]/check-closed          GET   on-demand closed check
     (Battlefield routes accept an id or a slug)
@@ -125,7 +131,11 @@ Two parts around one Postgres database on Railway.
   the Prisma CLI are devDependencies) and runs `web`'s build; `start` runs
   `next start` in `web/`, which listens on `PORT`. Without these, Railway runs
   `node index.js` and crashes with "Cannot find module '/app/index.js'". The web
-  service needs `DATABASE_URL`, `APIFY_TOKEN` and `ANTHROPIC_API_KEY` set.
+  service needs `DATABASE_URL`, `APIFY_TOKEN`, `ANTHROPIC_API_KEY` and `CRON_SECRET`.
+- **The sweep cron is its own Railway service** from the same repo, with its config
+  file path set to `/railway/sweep-cron.json` (never a root `railway.json`, which the
+  web service would pick up and become a cron). It needs `SWEEP_URL`
+  (`https://<web domain>/api/runs/sweep`) and the same `CRON_SECRET` as the web service.
 - `prisma migrate dev` refuses to run in a non-interactive shell. Write the migration
   SQL by hand (`prisma migrate diff` drafts it) and apply it with `prisma migrate deploy`.
 

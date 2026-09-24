@@ -3,8 +3,10 @@
 // 2. checkRun (polled by the status route): while any Apify run is still going,
 //    report progress; once all have finished, ingest the results exactly once
 //    and mark the Run done (or failed).
+import { after } from "next/server";
 import { prisma } from "./prisma";
 import { getRuns, readJobs, startSearch, TERMINAL, type RunState, type SearchParams } from "./apify";
+import { rankBattlefield } from "./rank";
 import { APPLIED_STAGES, saveToBattlefield, toJobData } from "./jobs";
 import { HttpError } from "./http";
 import type { Battlefield, Run } from "../generated/prisma/client";
@@ -152,4 +154,41 @@ export async function checkRun(runId: string) {
 
   const result = await ingest(run, states);
   return { summary: await summarize(result.run, []), newJobIds: result.newJobIds };
+}
+
+// Auto-Rank grades only a search's new arrivals, after the response is sent,
+// so ranking never holds a request open. It writes its own Run. Call from a
+// route handler (after() needs the request scope).
+export async function autoRankAfter(battlefieldId: string | null, newJobIds: string[]) {
+  if (!battlefieldId || newJobIds.length === 0) return null;
+  const battlefield = await prisma.battlefield.findUnique({ where: { id: battlefieldId } });
+  if (!battlefield?.autoRank) return null;
+  after(() =>
+    rankBattlefield(battlefield.id, { jobIds: newJobIds }).catch((e) =>
+      console.error("Auto-Rank failed", e)
+    )
+  );
+  return "started" as const;
+}
+
+// Checks every running search and ingests the ones whose Apify runs have
+// finished, so saving never depends on a browser polling. Uses checkRun, so
+// the same claim guard applies if a browser polls the same Run at once.
+export async function sweepRunningSearches() {
+  const running = await prisma.run.findMany({
+    where: { kind: "search", status: "running" },
+    orderBy: { startedAt: "asc" },
+    select: { id: true },
+  });
+  const results = [];
+  for (const { id } of running) {
+    try {
+      const { summary, newJobIds } = await checkRun(id);
+      const autoRank = await autoRankAfter(summary.battlefieldId, newJobIds);
+      results.push({ runId: id, status: summary.status, found: summary.found, new: summary.new, autoRank });
+    } catch (e) {
+      results.push({ runId: id, status: "error", error: e instanceof Error ? e.message : String(e) });
+    }
+  }
+  return results;
 }

@@ -1,0 +1,12 @@
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "build": {
+    "buildCommand": "echo sweep cron: nothing to build",
+    "watchPatterns": ["scripts/sweep.mjs", "railway/sweep-cron.json"]
+  },
+  "deploy": {
+    "startCommand": "node scripts/sweep.mjs",
+    "cronSchedule": "*/5 * * * *",
+    "restartPolicyType": "NEVER"
+  }
+}
