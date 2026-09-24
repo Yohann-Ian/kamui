@@ -22,7 +22,7 @@ import {
 
 const OUT = new URL("../KAMUI-postmortem.docx", import.meta.url);
 const UPDATED = "2026-09-24";
-const LATEST = "the sweep cron";
+const LATEST = "the heartbeat fix";
 
 // ---------------------------------------------------------------- content
 
@@ -505,6 +505,56 @@ const PHASES = [
       "Kept: Explore wave 'technical content' (1 job) and its Run.",
     ],
   },
+  {
+    title: "After Phase 4: heartbeat recovery for stuck ingests",
+    date: "2026-09-24",
+    commit: "e2c8ac5",
+    summary:
+      "A Run could stay \"ingesting\" forever if the server died mid-save, because the claim that stops two callers saving also blocked any retry. Added a heartbeat: the saver stamps Run.heartbeatAt every 5 seconds, and the sweep hands a Run back to \"running\" only when its stamp is more than 2 minutes old, so a crashed save is retried and a slow one is left alone.",
+    changes: [
+      "prisma/migrations/20260924160000_run_heartbeat: additive. Run gains heartbeatAt (timestamp, nullable).",
+      "web/lib/searchRuns.ts: the claim (running to ingesting) sets heartbeatAt; startHeartbeat re-stamps it every 5 seconds (only while the Run is still ingesting) and stops when the save ends; reclaimStaleIngests resets stale Runs to running; sweepRunningSearches calls it before ingesting.",
+      "Explore saves replace the wave's rows (deleteMany, then createMany, in one transaction) instead of appending.",
+      "POST /api/runs/sweep reports how many Runs it reclaimed.",
+    ],
+    decisions: [
+      [
+        "Heartbeat instead of a fixed timeout",
+        "A fixed timeout either reclaims slow saves that are still working or leaves crashed ones stuck for too long.",
+        "A save is only reclaimed after 2 minutes without a stamp, however long it has been running.",
+      ],
+      [
+        "A Run ingesting with no heartbeatAt is treated as stale",
+        "Every claim now sets the stamp, so a missing one can only come from before this change.",
+        "",
+      ],
+      [
+        "Explore saves replace the wave's rows",
+        "If a save committed and then its process died before marking the Run done, the retry would otherwise store the jobs twice.",
+        "Battlefield saves were already safe through the (battlefieldId, atsJobId) unique index.",
+      ],
+    ],
+    incidents: [
+      [
+        "During testing, a sweep reported reclaimed=1 while a deliberately slow save was running.",
+        "The reclaimed Run was a leftover test Run from the previous scenario whose heartbeat had genuinely gone stale, not the slow save.",
+        "Confirmed from finish times: the slow save finished on its own after 2 min 35 s; the leftover was reclaimed and re-saved. Working as designed.",
+      ],
+    ],
+    verification: [
+      "tsc and eslint clean; migrate diff empty after applying.",
+      "Test Runs pointed at an already finished Apify run (no new Apify cost). One sweep reclaimed and re-saved a Run ingesting with a 5-minute-old stamp and a Run with no stamp, and left a Run with a 30-second-old stamp alone. The stale Run's wave already had 1 row from the dead save and ended with 1, not 2.",
+      "Slow save: with a temporary 150-second pause in the save (removed before commit), heartbeatAt stayed 3 to 4 seconds old throughout, a sweep 135 seconds in did not reclaim it, and it finished normally.",
+      "All test Runs, waves and jobs were deleted afterwards.",
+    ],
+    risks: [
+      "If the database stops accepting the heartbeat writes for over 2 minutes while the saver itself is still alive, the sweep can start a second save of the same Run. Battlefield saves dedupe and Explore saves replace, so the data stays correct, but jobsNew and Auto-Rank can miss jobs the first save inserted.",
+      "A retried Battlefield save counts jobs the dead save already inserted as existing, so they are not reported as new or auto-ranked.",
+    ],
+    dataChanges: [
+      "Applied migration 20260924160000_run_heartbeat (additive). No test data kept.",
+    ],
+  },
 ];
 
 // Symptom-first lookup for later debugging.
@@ -520,7 +570,7 @@ const GOTCHAS = [
   ["next dev panics with 0xc0000142", "Turbopack could not spawn its PostCSS worker. Use npx next dev --webpack."],
   ["Railway deploy crashes: Cannot find module '/app/index.js'", "Railway built the repo root, whose package.json had no start script. Fixed on 2026-09-24: root build/start scripts delegate to web/. Check they still exist."],
   ["Railway build fails on tailwind, typescript or prisma not found", "web/ devDependencies were skipped in a production install. The root build script must keep npm ci --include=dev."],
-  ["A search shows Saving the results... forever", "Its Run is stuck in ingesting (the server died mid-ingest). Set the Run's status back to running; the next poll ingests again."],
+  ["A search shows Saving the results... for minutes", "Its saver died mid-ingest. Once heartbeatAt is over 2 minutes old, the next sweep (every 5 minutes) hands it back to running and saves it again. If it never recovers, check that the sweep cron is running."],
   ["A search finished on Apify but its jobs never appeared", "Check the sweep cron service's logs on Railway. Until the next sweep, opening the Battlefield or wave page (which polls GET /api/runs/<id>) also ingests it."],
   ["The sweep cron logs sweep 401", "CRON_SECRET differs between the web service and the cron service, or the header lacks the Bearer prefix."],
   ["The web service stops serving and runs every 5 minutes instead", "It picked up a cron config: a railway.json at the repo root, or its config file path set to railway/sweep-cron.json. Only the cron service should use that file."],
@@ -533,7 +583,6 @@ const OPEN_ISSUES = [
   "The B2B rubric contradicts itself on senior individual-contributor roles (Fit vs Possible).",
   "Auto-Populate has no scheduler.",
   "Manual Rank still runs inside its request; large ranks could time out on Railway.",
-  "Nothing resets a Run stuck in ingesting.",
   "The Railway sweep cron service has to be created by hand (see CLAUDE.md) and has not been verified on Railway.",
   "The deployed Railway app has not been verified after the deploy fix and the async search change.",
   "Two lockfiles (repo root and web/) make Next.js guess the workspace root.",
