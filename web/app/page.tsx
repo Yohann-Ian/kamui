@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "../lib/prisma";
 import { daysSince, pickJudgment, resolveBattlefield } from "../lib/battlefields";
 import { APPLIED_STAGES } from "../lib/jobs";
+import { ACTIVE } from "../lib/searchRuns";
 import JobBoard from "./JobBoard";
 
 export const dynamic = "force-dynamic";
@@ -28,8 +29,14 @@ export default async function Home({
     );
   }
 
-  const [rubric, jobs] = await Promise.all([
+  const [rubric, activeSearch, jobs] = await Promise.all([
     prisma.rubric.findFirst({ where: { battlefieldId: current.id, active: true } }),
+    // a search still running on Apify, so the toolbar can resume showing it
+    prisma.run.findFirst({
+      where: { battlefieldId: current.id, kind: "search", status: { in: ACTIVE } },
+      orderBy: { startedAt: "desc" },
+      select: { id: true },
+    }),
     prisma.job.findMany({
       where: { battlefieldId: current.id, dismissed: false },
       include: {
@@ -76,6 +83,7 @@ export default async function Home({
       key={current.slug}
       jobs={data}
       hiddenCount={hidden.length}
+      activeSearchRunId={activeSearch?.id ?? null}
       battlefields={all}
       battlefield={{
         id: current.id,

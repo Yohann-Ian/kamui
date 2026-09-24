@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { elapsedSince, isActive, useNow, useRunStatus, type RunStatus } from "./useRunStatus";
 
 type Preview = { unranked: number; alreadyRanked: number; rubricVersion: number };
 
@@ -15,60 +16,69 @@ async function call(url: string, init?: RequestInit) {
 
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
-function clock(seconds: number) {
-  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+function searchLine(run: RunStatus, now: number) {
+  if (run.status === "running") {
+    const clock = now ? `${elapsedSince(run.startedAt, now)} - ` : "";
+    return `Searching... ${clock}${run.progress.join(" / ") || "starting up"}`;
+  }
+  if (run.status === "ingesting") return "Saving the results...";
+  if (run.status === "failed") return `Search failed: ${run.error ?? "unknown error"}`;
+  let text = `Found ${run.found}, ${run.new} new, ${run.alreadyApplied} you have already applied to.`;
+  if (run.autoRank === "started") text += " Auto-Rank is grading the new jobs in the background.";
+  if (run.error) text += ` (${run.error})`;
+  return text;
 }
 
 export default function Toolbar({
   battlefieldId,
   slug,
   hasRubric,
+  activeSearchRunId,
 }: {
   battlefieldId: string;
   slug: string;
   hasRubric: boolean;
+  activeSearchRunId: string | null; // a search still running when the page loaded
 }) {
   const router = useRouter();
-  const [busy, setBusy] = useState<null | "search" | "rank" | "preview">(null);
-  const [elapsed, setElapsed] = useState(0);
+  const [searchRunId, setSearchRunId] = useState(activeSearchRunId);
+  const [starting, setStarting] = useState(false);
+  const [busy, setBusy] = useState<null | "rank" | "preview">(null);
+  const [rankStartedAt, setRankStartedAt] = useState("");
   const [message, setMessage] = useState<{ text: string; error?: boolean } | null>(null);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [rerank, setRerank] = useState(false);
 
-  useEffect(() => {
-    if (busy !== "search" && busy !== "rank") return;
-    const timer = setInterval(() => setElapsed((s) => s + 1), 1000);
-    return () => clearInterval(timer);
-  }, [busy]);
+  const run = useRunStatus(searchRunId);
+  const searching = starting || (!!searchRunId && (run === null || isActive(run)));
+  const now = useNow(searching || busy === "rank");
 
-  function start(kind: "search" | "rank" | "preview") {
-    setBusy(kind);
-    setElapsed(0);
-    setMessage(null);
-  }
+  // Once a search finishes, reload the job list (once per run)
+  const refreshed = useRef<string | null>(null);
+  useEffect(() => {
+    if (run && !isActive(run) && refreshed.current !== run.runId) {
+      refreshed.current = run.runId;
+      router.refresh();
+    }
+  }, [run, router]);
 
   async function search() {
     setPreview(null);
-    start("search");
+    setMessage(null);
+    setStarting(true);
     try {
       const r = await call(`/api/battlefields/${battlefieldId}/search`, { method: "POST" });
-      let text = `Found ${r.found}, ${r.new} new, ${r.alreadyApplied} you have already applied to.`;
-      if (r.rank) {
-        text += r.rank.error
-          ? ` Auto-Rank failed: ${r.rank.error}`
-          : ` Auto-ranked ${r.rank.ranked}.`;
-      }
-      setMessage({ text });
-      router.refresh();
+      setSearchRunId(r.runId);
     } catch (e) {
-      setMessage({ text: `Search failed: ${errorText(e)}`, error: true });
+      setMessage({ text: `Search failed to start: ${errorText(e)}`, error: true });
     } finally {
-      setBusy(null);
+      setStarting(false);
     }
   }
 
   async function openRank() {
-    start("preview");
+    setMessage(null);
+    setBusy("preview");
     try {
       setPreview(await call(`/api/battlefields/${battlefieldId}/rank-preview`));
       setRerank(false);
@@ -81,7 +91,9 @@ export default function Toolbar({
 
   async function rank() {
     setPreview(null);
-    start("rank");
+    setMessage(null);
+    setRankStartedAt(new Date().toISOString());
+    setBusy("rank");
     try {
       const r = await call(`/api/battlefields/${battlefieldId}/rank`, {
         method: "POST",
@@ -100,23 +112,33 @@ export default function Toolbar({
     }
   }
 
+  const locked = searching || busy !== null;
   const toRank = preview ? preview.unranked + (rerank ? preview.alreadyRanked : 0) : 0;
   const button =
     "rounded-md border px-3 py-1 text-sm disabled:cursor-not-allowed disabled:opacity-50";
+
+  let status: { text: string; error?: boolean } | null = message;
+  if (!status && busy === "rank") {
+    status = { text: `Ranking... ${now ? elapsedSince(rankStartedAt, now) : ""}` };
+  } else if (!status && starting) {
+    status = { text: "Starting the search..." };
+  } else if (!status && run) {
+    status = { text: searchLine(run, now), error: run.status === "failed" };
+  }
 
   return (
     <div className="mb-4">
       <div className="flex flex-wrap items-center gap-2">
         <button
           onClick={search}
-          disabled={busy !== null}
+          disabled={locked}
           className={`${button} border-gray-900 bg-gray-900 text-white`}
         >
-          {busy === "search" ? "Searching..." : "Search New"}
+          {searching ? "Searching..." : "Search New"}
         </button>
         <button
           onClick={openRank}
-          disabled={busy !== null || !hasRubric}
+          disabled={locked || !hasRubric}
           title={hasRubric ? undefined : "This Battlefield has no rubric yet"}
           className={`${button} border-gray-300 text-gray-700 hover:border-gray-500`}
         >
@@ -130,18 +152,22 @@ export default function Toolbar({
             Add a rubric to rank
           </Link>
         ) : null}
-        {busy === "search" || busy === "rank" ? (
-          <span className="text-xs tabular-nums text-gray-500">
-            {clock(elapsed)}
-            {busy === "search" ? " - a sweep takes a few minutes" : ""}
-          </span>
-        ) : null}
-        {message ? (
-          <span className={`text-sm ${message.error ? "text-red-700" : "text-gray-700"}`}>
-            {message.text}
+        {status ? (
+          <span
+            className={`text-sm ${status.error ? "text-red-700" : "text-gray-700"} ${
+              searching ? "tabular-nums" : ""
+            }`}
+          >
+            {status.text}
           </span>
         ) : null}
       </div>
+      {searching ? (
+        <p className="mt-1 text-xs text-gray-400">
+          The search runs on Apify, so you can leave this page; it picks up again when you come
+          back.
+        </p>
+      ) : null}
 
       {preview ? (
         <div className="mt-3 rounded-lg border border-gray-200 p-4 text-sm">

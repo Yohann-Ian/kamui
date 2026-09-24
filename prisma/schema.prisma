@@ -112,14 +112,20 @@ model SearchWave {
   createdAt DateTime @default(now())
   jobCount  Int      @default(0)
   jobs      Job[]
+  runs      Run[]
 }
 
 model Run {
   id            String       @id @default(cuid())
   battlefield   Battlefield? @relation(fields: [battlefieldId], references: [id])
   battlefieldId String?
+  // set on Explore searches: the wave the results are saved into
+  searchWave    SearchWave?  @relation(fields: [searchWaveId], references: [id])
+  searchWaveId  String?
+  // one Apify run per location; the status route checks them and ingests when done
+  apifyRunIds   String[]
   kind          String // "search" | "rank"
-  status        String       @default("running") // running | done | failed
+  status        String       @default("running") // running | ingesting | done | failed
   jobsFound     Int          @default(0)
   jobsNew       Int          @default(0)
   jobsRanked    Int          @default(0)

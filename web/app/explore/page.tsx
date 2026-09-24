@@ -12,7 +12,17 @@ export default async function ExplorePage({
 }) {
   const params = await searchParams;
   const [waves, battlefields] = await Promise.all([
-    prisma.searchWave.findMany({ orderBy: { createdAt: "desc" }, take: 100 }),
+    prisma.searchWave.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 100,
+      include: {
+        runs: {
+          orderBy: { startedAt: "desc" },
+          take: 1,
+          select: { id: true, status: true, error: true },
+        },
+      },
+    }),
     prisma.battlefield.findMany({
       where: { archived: false },
       orderBy: { createdAt: "asc" },
@@ -33,6 +43,10 @@ export default async function ExplorePage({
         locations: w.locations,
         when: when(w.createdAt),
         jobCount: w.jobCount,
+        // waves saved before searches became asynchronous have no linked Run
+        runId: w.runs[0]?.id ?? null,
+        runStatus: w.runs[0]?.status ?? "done",
+        runError: w.runs[0]?.error ?? null,
       }))}
       currentId={current?.id ?? null}
       jobs={jobs.map((j) => ({

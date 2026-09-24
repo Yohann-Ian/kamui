@@ -35,7 +35,9 @@ Two parts around one Postgres database on Railway.
 - **StatusNote** — one note per job per stage, `@@unique([jobId, stage])`.
 - **SearchWave** — one saved Explore search and its jobs, so it can be revisited
   without paying for it again.
-- **Run** — an audit row for every search and rank, so spend is visible.
+- **Run** — an audit row for every search and rank, so spend is visible. A search Run
+  holds its Apify run ids (`apifyRunIds`, one per location) and, for Explore, its
+  `searchWaveId`. Status: running -> ingesting -> done | failed.
 
 ## Key conventions
 
@@ -53,6 +55,12 @@ Two parts around one Postgres database on Railway.
   (searches are capped). Closure is only set by the on-demand URL check, and a job
   with an Application is never auto-hidden or deleted.
 - **Every route that costs money writes a Run row.**
+- **Searches never wait for Apify inside a request** (Railway times long requests
+  out). The search and explore routes start the Apify runs and return a Run id at
+  once. `GET /api/runs/<id>` reports progress and, on the first call after every Apify
+  run has finished, ingests the jobs (it claims the Run with a status update, so
+  concurrent polls cannot ingest twice). The UI polls it every 5 seconds and resumes
+  polling on page load. Auto-Rank runs in `after()` once the response is sent.
 - **Post-mortem log**: `docs/KAMUI-postmortem.docx` records every rebuild phase
   (changes, decisions and spec deviations, problems found, verification, risks,
   production data changes). After each phase completes, add its entry to
@@ -66,13 +74,15 @@ Two parts around one Postgres database on Railway.
 
     prisma/schema.prisma        the single source of truth for the schema
     web/lib/prisma.ts           Prisma client (needs the @prisma/adapter-pg driver adapter)
-    web/lib/apify.ts            runs the Apify actor, one run per location
+    web/lib/apify.ts            apify-client: start runs, check runs, read datasets
+    web/lib/searchRuns.ts       start a search / explore, checkRun (progress + one-time ingest)
     web/lib/jobs.ts             maps actor items to Job rows, per-Battlefield dedup
     web/lib/rank.ts             the judge: grades jobs against the active rubric
-    web/app/api/battlefields/[id]/search        POST  search, save, auto-rank if on
+    web/app/api/battlefields/[id]/search        POST  start a search -> { runId } (202)
     web/app/api/battlefields/[id]/rank          POST  { rerank? } grade unranked jobs
     web/app/api/battlefields/[id]/rank-preview  GET   { unranked, alreadyRanked }
-    web/app/api/explore                         POST  { query, locations } -> SearchWave
+    web/app/api/explore                         POST  { query, locations } -> { runId, waveId } (202)
+    web/app/api/runs/[id]                       GET   search progress; ingests when Apify is done
     web/app/api/explore/waves/[id]/promote      POST  copy a wave into a Battlefield
     web/app/api/jobs/[id]/check-closed          GET   on-demand closed check
     (Battlefield routes accept an id or a slug)
@@ -80,7 +90,8 @@ Two parts around one Postgres database on Railway.
     web/lib/waves.ts            waveJobs, copyWaveJobs (promote a wave into a Battlefield)
     web/app/page.tsx            Discovery (server)
     web/app/JobBoard.tsx        Discovery (client): sort/filter, dismiss, closed check
-    web/app/Toolbar.tsx         Search New and Rank (with rank-preview confirmation)
+    web/app/Toolbar.tsx         Search New (polls the Run) and Rank (with rank-preview confirmation)
+    web/app/useRunStatus.ts     client hook that polls /api/runs/<id>
     web/app/actions.ts          server actions: setStatus, saveNote, dismissJob
     web/app/BattlefieldSwitch.tsx       switcher, reads Battlefields from the database
     web/app/battlefields/actions.ts     create/update Battlefield, toggles, saveRubric, archive
@@ -127,7 +138,8 @@ descriptions (`includeDescription: true`), which the judge needs.
 Input keys used: `mode`, `query` (all words must be in the title; Explore),
 `titleIncludes` (any phrase; Battlefields), `titleExcludes`, `location` (a single
 string, so one actor run per location), `includeDescription`, `maxBoards`, `maxJobs`,
-`maxJobsPerBoard`. A 500-board sweep takes about six minutes.
+`maxJobsPerBoard`. A 500-board sweep takes a few minutes. `apify-client` is listed in
+`serverExternalPackages` in `web/next.config.ts`.
 
 Known issue, not yet fixed: the current keywords surface almost entirely Senior and
 Staff roles, which the judge correctly grades Improbable. The fetch needs tuning to

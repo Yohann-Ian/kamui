@@ -51,11 +51,13 @@ function seenText(days: number) {
 export default function JobBoard({
   jobs,
   hiddenCount,
+  activeSearchRunId,
   battlefields,
   battlefield,
 }: {
   jobs: Job[];
   hiddenCount: number;
+  activeSearchRunId: string | null;
   battlefields: BattlefieldLink[];
   battlefield: Battlefield;
 }) {
@@ -128,6 +130,7 @@ export default function JobBoard({
           battlefieldId={battlefield.id}
           slug={battlefield.slug}
           hasRubric={battlefield.rubricVersion !== null}
+          activeSearchRunId={activeSearchRunId}
         />
 
         {noJobsYet ? (

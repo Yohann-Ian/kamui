@@ -1,10 +1,22 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { elapsedSince, isActive, useNow, useRunStatus } from "../useRunStatus";
 
-type Wave = { id: string; query: string; locations: string[]; when: string; jobCount: number };
+type Wave = {
+  id: string;
+  query: string;
+  locations: string[];
+  when: string;
+  jobCount: number;
+  runId: string | null;
+  runStatus: string;
+  runError: string | null;
+};
+
+const searchingNow = (w: Wave) => w.runStatus === "running" || w.runStatus === "ingesting";
 type Job = {
   id: string;
   title: string;
@@ -18,10 +30,6 @@ type Battlefield = { id: string; slug: string; name: string };
 const button =
   "rounded-md border px-3 py-1 text-sm disabled:cursor-not-allowed disabled:opacity-50";
 const heading = "mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400";
-
-function clock(seconds: number) {
-  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
-}
 
 async function call(url: string, body: unknown) {
   const res = await fetch(url, {
@@ -41,30 +49,23 @@ function SearchForm() {
   const [query, setQuery] = useState("");
   const [locations, setLocations] = useState("United States");
   const [busy, setBusy] = useState(false);
-  const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!busy) return;
-    const timer = setInterval(() => setElapsed((s) => s + 1), 1000);
-    return () => clearInterval(timer);
-  }, [busy]);
-
+  // Starts the search and opens its wave straight away; the wave shows the
+  // progress while Apify runs.
   async function search(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
-    setElapsed(0);
     setError(null);
     try {
-      const { wave } = await call("/api/explore", {
+      const { waveId } = await call("/api/explore", {
         query,
         locations: locations.split("\n").map((l) => l.trim()).filter(Boolean),
       });
-      router.push(`/explore?wave=${wave.id}`);
+      router.push(`/explore?wave=${waveId}`);
       router.refresh();
     } catch (err) {
-      setError(`Search failed: ${errorText(err)}`);
-    } finally {
+      setError(`Search failed to start: ${errorText(err)}`);
       setBusy(false);
     }
   }
@@ -105,21 +106,49 @@ function SearchForm() {
           disabled={busy || !query.trim()}
           className={`${button} border-gray-900 bg-gray-900 text-white`}
         >
-          {busy ? "Searching..." : "Search"}
+          {busy ? "Starting..." : "Search"}
         </button>
-        {busy ? (
-          <span className="text-xs tabular-nums text-gray-500">
-            {clock(elapsed)} - a sweep takes a few minutes
-          </span>
-        ) : (
-          <span className="text-xs text-gray-400">
-            Costs Apify credits: up to 50 jobs per location, from 500 career sites. The results are
-            saved, so reopening them later is free.
-          </span>
-        )}
+        <span className="text-xs text-gray-400">
+          Costs Apify credits: up to 50 jobs per location, from 500 career sites. The results are
+          saved, so reopening them later is free.
+        </span>
         {error ? <span className="text-sm text-red-700">{error}</span> : null}
       </div>
     </form>
+  );
+}
+
+// Shown on a wave whose search is still running on Apify.
+function WaveProgress({ runId }: { runId: string }) {
+  const router = useRouter();
+  const run = useRunStatus(runId);
+  const now = useNow(true);
+
+  // When the search finishes, reload so the wave's jobs appear (once)
+  const refreshed = useRef(false);
+  useEffect(() => {
+    if (run && !isActive(run) && !refreshed.current) {
+      refreshed.current = true;
+      router.refresh();
+    }
+  }, [run, router]);
+
+  if (run?.status === "failed") {
+    return <p className="mb-4 text-sm text-red-700">Search failed: {run.error}</p>;
+  }
+  return (
+    <div className="mb-4 rounded-lg bg-gray-50 p-3 text-sm text-gray-700">
+      <div className="tabular-nums">
+        {run?.status === "ingesting"
+          ? "Saving the results..."
+          : `Searching... ${run && now ? `${elapsedSince(run.startedAt, now)} - ` : ""}${
+              run?.progress.join(" / ") || "starting up"
+            }`}
+      </div>
+      <p className="mt-1 text-xs text-gray-400">
+        The search runs on Apify, so you can leave this page; it is saved here when it finishes.
+      </p>
+    </div>
   );
 }
 
@@ -233,7 +262,12 @@ export default function Explore({
                   <div
                     className={`text-[11px] ${w.id === currentId ? "text-gray-300" : "text-gray-400"}`}
                   >
-                    {w.when} - {w.jobCount} {w.jobCount === 1 ? "job" : "jobs"}
+                    {w.when} -{" "}
+                    {searchingNow(w)
+                      ? "searching..."
+                      : w.runStatus === "failed"
+                        ? "failed"
+                        : `${w.jobCount} ${w.jobCount === 1 ? "job" : "jobs"}`}
                   </div>
                 </Link>
               </li>
@@ -253,11 +287,19 @@ export default function Explore({
               <div className="text-xs text-gray-500">
                 {current.when}
                 {current.locations.length ? ` - ${current.locations.join(", ")}` : ""} -{" "}
-                {current.jobCount} {current.jobCount === 1 ? "job" : "jobs"}, unranked
+                {searchingNow(current)
+                  ? "searching"
+                  : `${current.jobCount} ${current.jobCount === 1 ? "job" : "jobs"}, unranked`}
               </div>
             </div>
 
-            <Promote wave={current} battlefields={battlefields} />
+            {searchingNow(current) && current.runId ? (
+              <WaveProgress runId={current.runId} />
+            ) : current.runStatus === "failed" ? (
+              <p className="mb-4 text-sm text-red-700">Search failed: {current.runError}</p>
+            ) : (
+              <Promote wave={current} battlefields={battlefields} />
+            )}
 
             <ul>
               {jobs.map((job) => (
@@ -290,7 +332,7 @@ export default function Explore({
                 </li>
               ))}
             </ul>
-            {jobs.length === 0 ? (
+            {jobs.length === 0 && current.runStatus === "done" ? (
               <p className="py-6 text-sm text-gray-400">This search found no jobs.</p>
             ) : null}
           </>
