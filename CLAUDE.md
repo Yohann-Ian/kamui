@@ -53,6 +53,11 @@ Two parts around one Postgres database on Railway.
   (searches are capped). Closure is only set by the on-demand URL check, and a job
   with an Application is never auto-hidden or deleted.
 - **Every route that costs money writes a Run row.**
+- **Post-mortem log**: `docs/KAMUI-postmortem.docx` records every rebuild phase
+  (changes, decisions and spec deviations, problems found, verification, risks,
+  production data changes). After each phase completes, add its entry to
+  `docs/postmortem/build.mjs` (plus GOTCHAS / OPEN_ISSUES if needed) and run
+  `node build.mjs` in that folder (`npm install` there first on a fresh clone).
 - **Every screen is two files**: a `page.tsx` server component that queries the
   database, and a client component that handles interaction. Database access stays
   on the server.
