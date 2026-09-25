@@ -17,7 +17,7 @@ export async function uniqueSlug(name: string) {
 export async function resolveBattlefield(slug?: string) {
   const all = await prisma.battlefield.findMany({
     where: { archived: false },
-    orderBy: { createdAt: "asc" },
+    orderBy: [{ createdAt: "asc" }, { name: "asc" }],
   });
   const current =
     all.find((b) => b.slug === slug) ??
@@ -49,7 +49,7 @@ export function daysSince(date: Date) {
 export async function sidebarBattlefields() {
   const battlefields = await prisma.battlefield.findMany({
     where: { archived: false },
-    orderBy: { createdAt: "asc" },
+    orderBy: [{ createdAt: "asc" }, { name: "asc" }],
     include: { rubrics: { where: { active: true }, select: { id: true } } },
   });
   return Promise.all(

@@ -1,8 +1,9 @@
 "use client";
 
-// The Discovery header: Battlefield name and stat line, with Rank (secondary)
-// and Search New (primary). Search New starts the search and polls its Run;
-// Rank shows rank-preview and asks before spending anything.
+// Search New (primary) and Rank (secondary), under the All jobs label, with
+// the search progress line and the rank confirmation beneath them. Search New
+// starts the search and polls its Run; Rank shows rank-preview and asks before
+// spending anything.
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
@@ -35,16 +36,12 @@ function searchLine(run: RunStatus, now: number) {
 }
 
 export default function Toolbar({
-  name,
-  stats,
   battlefieldId,
   slug,
   hasRubric,
   unranked,
   activeSearchRunId,
 }: {
-  name: string;
-  stats: string;
   battlefieldId: string;
   slug: string;
   hasRubric: boolean;
@@ -137,28 +134,22 @@ export default function Toolbar({
 
   return (
     <div className="shrink-0">
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <h1 className="truncate font-display text-heading font-bold tracking-[-0.015em]">{name}</h1>
-          <p className="mt-1 text-item font-medium">{stats}</p>
-        </div>
-        <div className="flex shrink-0 gap-2">
-          <button
-            onClick={openRank}
-            disabled={locked || !hasRubric}
-            title={hasRubric ? undefined : "This Battlefield has no rubric yet"}
-            className={btnSecondary}
-          >
-            {busy === "rank" ? "Ranking..." : unranked > 0 ? `Rank ${unranked}` : "Rank"}
-          </button>
-          <button onClick={search} disabled={locked} className={btnPrimary}>
-            {searching ? "Searching..." : "Search New"}
-          </button>
-        </div>
+      <div className="flex flex-wrap gap-2.5">
+        <button onClick={search} disabled={locked} className={btnPrimary}>
+          {searching ? "Searching..." : "Search New"}
+        </button>
+        <button
+          onClick={openRank}
+          disabled={locked || !hasRubric}
+          title={hasRubric ? undefined : "This Battlefield has no rubric yet"}
+          className={btnSecondary}
+        >
+          {busy === "rank" ? "Ranking..." : unranked > 0 ? `Rank ${unranked}` : "Rank"}
+        </button>
       </div>
 
       {status || !hasRubric ? (
-        <p className={`mt-2 text-meta font-medium ${searching ? "tabular-nums" : ""}`}>
+        <p className={`mt-2.5 text-meta leading-[1.45] font-medium ${searching ? "tabular-nums" : ""}`}>
           {status ? (
             <span className={status.error ? "font-semibold underline decoration-grade-unfit decoration-2 underline-offset-4" : ""}>
               {status.text}

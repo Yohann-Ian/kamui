@@ -25,7 +25,7 @@ export default async function ExplorePage({
     }),
     prisma.battlefield.findMany({
       where: { archived: false },
-      orderBy: { createdAt: "asc" },
+      orderBy: [{ createdAt: "asc" }, { name: "asc" }],
       select: { id: true, slug: true, name: true },
     }),
   ]);

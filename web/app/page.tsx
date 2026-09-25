@@ -21,7 +21,7 @@ export default async function HomePage({
 
   const battlefields = await prisma.battlefield.findMany({
     where: { archived: false },
-    orderBy: { createdAt: "asc" },
+    orderBy: [{ createdAt: "asc" }, { name: "asc" }],
     include: {
       runs: {
         where: { kind: "search" },
