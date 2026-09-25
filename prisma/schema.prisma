@@ -13,19 +13,22 @@ datasource db {
 }
 
 model Battlefield {
-  id              String   @id @default(cuid())
+  id              String    @id @default(cuid())
   name            String
-  slug            String   @unique
+  slug            String    @unique
   titleIncludes   String[]
   titleExcludes   String[]
   locations       String[]
-  maxBoards       Int      @default(2000)
-  maxJobs         Int      @default(200)
-  maxJobsPerBoard Int      @default(25)
-  autoPopulate    Boolean  @default(false)
-  autoRank        Boolean  @default(false)
-  archived        Boolean  @default(false)
-  createdAt       DateTime @default(now())
+  maxBoards       Int       @default(2000)
+  maxJobs         Int       @default(200)
+  maxJobsPerBoard Int       @default(25)
+  autoPopulate    Boolean   @default(false)
+  autoRank        Boolean   @default(false)
+  archived        Boolean   @default(false)
+  // when the user last opened this Battlefield's Discovery; jobs first seen
+  // after it are "new" on the homepage
+  lastViewedAt    DateTime?
+  createdAt       DateTime  @default(now())
   jobs            Job[]
   rubrics         Rubric[]
   runs            Run[]

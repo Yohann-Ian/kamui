@@ -48,3 +48,13 @@ export function ordinal(n: number) {
   const suffix = tens >= 11 && tens <= 13 ? "th" : ({ 1: "st", 2: "nd", 3: "rd" } as Record<number, string>)[n % 10] ?? "th";
   return `${n}${suffix}`;
 }
+
+// "just now", "12 minutes ago", "2 hours ago", "yesterday", "5 days ago"
+export function timeAgo(date: Date, now = Date.now()) {
+  const minutes = Math.max(0, Math.floor((now - date.getTime()) / 60_000));
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return minutes === 1 ? "a minute ago" : `${minutes} minutes ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return hours === 1 ? "an hour ago" : `${hours} hours ago`;
+  return daysAgo(Math.floor(hours / 24));
+}

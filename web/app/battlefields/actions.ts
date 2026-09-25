@@ -101,3 +101,9 @@ export async function setArchived(id: string, archived: boolean) {
   revalidatePath("/", "layout");
   redirect(archived ? "/" : `/battlefields/${battlefield.slug}`);
 }
+
+// Opening a Battlefield's Discovery: jobs first seen after this stop counting
+// as "new" on the homepage. No revalidation, so the open page does not reload.
+export async function markViewed(battlefieldId: string) {
+  await prisma.battlefield.update({ where: { id: battlefieldId }, data: { lastViewedAt: new Date() } });
+}

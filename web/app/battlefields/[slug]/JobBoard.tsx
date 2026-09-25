@@ -6,6 +6,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { setStatus, saveNote, dismissJob } from "../../actions";
+import { markViewed } from "../actions";
 import { CardLabel, GradeDot, btnPrimary, btnSecondary, daysAgo, field, ordinal } from "../../shell/ui";
 import Toolbar from "./Toolbar";
 
@@ -88,6 +89,11 @@ export default function JobBoard({
     );
   const [selectedId, setSelectedId] = useState(shown[0]?.id ?? null);
   const selected = jobs.find((j) => j.id === selectedId) ?? null;
+
+  // Opening Discovery marks this Battlefield's jobs as seen for the homepage
+  useEffect(() => {
+    markViewed(battlefield.id).catch(() => {});
+  }, [battlefield.id]);
 
   // Check whether a posting has closed when it is selected, once per job per
   // visit. Never in bulk.
