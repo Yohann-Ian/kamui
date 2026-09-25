@@ -211,6 +211,11 @@ request, five jobs at a time.
 - Without the root `build`/`start` scripts, Railway runs `node index.js` and crashes
   with "Cannot find module '/app/index.js'".
 - After changing the schema, restart `next dev`: it caches the old Prisma client.
+- **Never hand-write `-webkit-` prefixes in CSS.** The production minifier merged
+  `backdrop-filter` + `-webkit-backdrop-filter` into only the prefixed one, which
+  Chrome and Edge ignore, so the deployed panel had no blur and Focus did nothing
+  (dev was fine). Write the standard property; the build adds prefixes. Check visual
+  CSS changes on a production build (`npm run build` + `npm start`), not only dev.
 - **Background photographs**: drop the original into `<repo>/images/` (gitignored,
   originals are 8-20 MB), run `npm run backgrounds` in `web/`, and commit
   `web/public/backgrounds/`. The sidebar cycles every file there.

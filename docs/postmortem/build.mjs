@@ -638,6 +638,7 @@ const PHASES = [
       "Audit (CLAUDE-CODE-PROMPTS Phase 7): no off-scale font sizes, no non-white text beyond the two allowed exceptions, no hex or rgba in components, no text at 10px or below, no grade pills, Frost on every page via the layout.",
     ],
     risks: [
+      "Found after deploy (fixed the same day): the hand-written -webkit-backdrop-filter in globals.css was merged by the production minifier into only the prefixed property, so on Railway nothing blurred and Frost Focus did nothing. Dev builds were unaffected, which is why the rebuild's tests missed it.",
       "Search New, status changes, notes and dismiss were not clicked in the new UI during testing (they change data or cost money); their code paths are unchanged from before.",
       "Native range-slider thumbs keep the browser's fixed size, so they look small on a 4K screen.",
       "Below about 1100 px wide the fixed sidebar and stat cards crowd the content; phones and tablets are not designed for.",
@@ -671,6 +672,7 @@ const GOTCHAS = [
   ["Frost or the background resets on every visit", "localStorage is blocked or cleared in that browser. Keys: kamui.frost.view|strength|focus and kamui.background."],
   ["A new background photo does not appear in the cycler", "Put the original in <repo>/images, run npm run backgrounds in web/, and commit web/public/backgrounds."],
   ["Homepage new count looks wrong", "New = jobs with firstSeen after Battlefield.lastViewedAt, set when Discovery opens. Promoted Explore jobs keep the wave's firstSeen."],
+  ["Frost Focus does nothing / no blur on the deployed site, but fine locally", "Check the production CSS for .frost-panel: it must contain an unprefixed backdrop-filter. A hand-written -webkit-backdrop-filter was merged by the minifier into only the prefixed form, which Chrome and Edge ignore (fixed 2026-09-25). Never hand-write -webkit- prefixes."],
   ["Port 3000 already in use", "A previous next dev left its node process running. Stop the process listening on 3000."],
 ];
 
