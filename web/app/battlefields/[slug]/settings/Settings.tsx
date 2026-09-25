@@ -1,9 +1,13 @@
 "use client";
 
+// Battlefield settings: search fields, the two automation switches, the
+// versioned rubric editor, and archive. Same shell and patterns: glass cards,
+// white text, list rows for the rubric history.
+
 import { useState, useTransition } from "react";
-import Link from "next/link";
 import BattlefieldForm, { type SearchFields } from "../../BattlefieldForm";
 import { saveRubric, setArchived, setAutomation, updateBattlefield } from "../../actions";
+import { CardLabel, btnPrimary, btnSecondary, field } from "../../../shell/ui";
 
 type Battlefield = SearchFields & {
   id: string;
@@ -22,11 +26,11 @@ type RubricVersion = {
   grades: number;
 };
 
-const heading = "mb-3 text-xs font-semibold uppercase tracking-wide text-gray-400";
+const errorMark = "font-semibold underline decoration-grade-unfit decoration-2 underline-offset-4";
 
 function Switch({
   battlefieldId,
-  field,
+  field: name,
   initial,
   title,
   children,
@@ -41,7 +45,7 @@ function Switch({
   const [pending, startTransition] = useTransition();
 
   return (
-    <label className="flex gap-3 rounded-lg border border-gray-200 p-4">
+    <label className="flex cursor-pointer gap-3 rounded-row px-1 py-2 hover:bg-row-selected">
       <input
         type="checkbox"
         checked={on}
@@ -49,29 +53,22 @@ function Switch({
         onChange={(e) => {
           const next = e.target.checked;
           setOn(next);
-          startTransition(() => setAutomation(battlefieldId, field, next));
+          startTransition(() => setAutomation(battlefieldId, name, next));
         }}
-        className="mt-1"
+        className="mt-1 size-4 shrink-0 accent-autumn-deep"
       />
       <div>
-        <div className="text-sm font-medium">
-          {title}{" "}
-          <span className={on ? "text-green-700" : "text-gray-400"}>{on ? "On" : "Off"}</span>
-          <span className="ml-2 text-xs font-normal text-gray-400">off by default</span>
+        <div className="text-item font-semibold">
+          {title}: {on ? "On" : "Off"}
+          <span className="ml-2 text-label font-medium opacity-85">off by default</span>
         </div>
-        <p className="mt-1 text-sm text-gray-500">{children}</p>
+        <p className="mt-1 text-meta leading-[1.5] font-medium">{children}</p>
       </div>
     </label>
   );
 }
 
-function RubricEditor({
-  battlefieldId,
-  rubrics,
-}: {
-  battlefieldId: string;
-  rubrics: RubricVersion[];
-}) {
+function RubricEditor({ battlefieldId, rubrics }: { battlefieldId: string; rubrics: RubricVersion[] }) {
   const active = rubrics.find((r) => r.active) ?? null;
   const [body, setBody] = useState(active?.body ?? "");
   const [message, setMessage] = useState<{ text: string; error?: boolean } | null>(null);
@@ -87,15 +84,13 @@ function RubricEditor({
   function save() {
     startTransition(async () => {
       const result = await saveRubric(battlefieldId, body);
-      setMessage(
-        result.error ? { text: result.error, error: true } : { text: result.saved ?? "Saved." }
-      );
+      setMessage(result.error ? { text: result.error, error: true } : { text: result.saved ?? "Saved." });
     });
   }
 
   return (
     <div>
-      <p className="mb-2 text-sm text-gray-500">
+      <p className="mt-2 mb-3 text-meta leading-[1.5] font-medium">
         {active
           ? `Editing the active rubric, v${active.version}. Saving creates v${
               rubrics[0].version + 1
@@ -105,18 +100,15 @@ function RubricEditor({
       <textarea
         value={body}
         onChange={(e) => setBody(e.target.value)}
-        rows={18}
-        className="w-full rounded-md border border-gray-200 p-3 font-mono text-[13px] leading-relaxed"
+        rows={16}
+        aria-label="Rubric"
+        className={`${field} panel-scroll w-full leading-[1.55]`}
       />
-      <div className="mt-2 flex flex-wrap items-center gap-3">
-        <button
-          onClick={save}
-          disabled={pending}
-          className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-        >
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        <button onClick={save} disabled={pending} className={btnPrimary}>
           {pending ? "Saving..." : "Save as new version"}
         </button>
-        <label className="cursor-pointer text-sm text-gray-500 underline hover:text-gray-900">
+        <label className={`${btnSecondary} cursor-pointer`}>
           Upload .txt or .md
           <input
             type="file"
@@ -129,37 +121,39 @@ function RubricEditor({
           />
         </label>
         {message ? (
-          <span className={`text-sm ${message.error ? "text-red-700" : "text-gray-600"}`}>
-            {message.text}
-          </span>
+          <span className={`text-meta ${message.error ? errorMark : "font-medium"}`}>{message.text}</span>
         ) : null}
       </div>
 
       {rubrics.length > 0 ? (
-        <div className="mt-6">
-          <div className={heading}>History</div>
-          <ul className="border-t border-gray-100">
+        <div className="mt-5">
+          <CardLabel className="pb-1.5">History</CardLabel>
+          <ul>
             {rubrics.map((r) => (
-              <li key={r.id} className="border-b border-gray-100 py-2 text-sm">
-                <div className="flex items-center gap-3">
-                  <span className="w-8 font-medium">v{r.version}</span>
-                  {r.active ? (
-                    <span className="rounded-full bg-green-100 px-2 text-xs text-green-800">
-                      active
+              <li key={r.id}>
+                <div
+                  className={`flex items-center gap-[0.8125rem] rounded-row px-3 py-[0.5625rem] ${
+                    viewing === r.id ? "bg-row-selected" : ""
+                  }`}
+                >
+                  <span className="w-7 shrink-0 text-right font-mono text-score font-medium">v{r.version}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-item leading-[1.35] font-medium">
+                      {r.active ? "Active" : "Previous version"}
                     </span>
-                  ) : null}
-                  <span className="text-gray-500">
-                    {r.createdOn} - {r.grades} {r.grades === 1 ? "grade" : "grades"}
+                    <span className="block text-meta leading-[1.35] font-medium">
+                      {r.createdOn} · {r.grades} {r.grades === 1 ? "grade" : "grades"}
+                    </span>
                   </span>
                   <button
                     onClick={() => setViewing(viewing === r.id ? null : r.id)}
-                    className="ml-auto text-gray-500 underline hover:text-gray-900"
+                    className="shrink-0 text-meta font-semibold underline underline-offset-2"
                   >
                     {viewing === r.id ? "Hide" : "View"}
                   </button>
                 </div>
                 {viewing === r.id ? (
-                  <pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap rounded bg-gray-50 p-3 text-[12px] text-gray-600">
+                  <pre className="panel-scroll mx-3 mt-1 mb-3 max-h-80 overflow-auto rounded-row bg-card p-3 font-ui text-meta leading-[1.55] whitespace-pre-wrap">
                     {r.body}
                   </pre>
                 ) : null}
@@ -172,86 +166,67 @@ function RubricEditor({
   );
 }
 
-export default function Settings({
-  battlefield,
-  rubrics,
-}: {
-  battlefield: Battlefield;
-  rubrics: RubricVersion[];
-}) {
+export default function Settings({ battlefield, rubrics }: { battlefield: Battlefield; rubrics: RubricVersion[] }) {
   const [archiving, startArchive] = useTransition();
   const locationCount = Math.max(battlefield.locations.length, 1);
 
   return (
-    <main className="mx-auto max-w-3xl px-6 py-10">
-      <Link
-        href={`/battlefields/${battlefield.slug}`}
-        className="text-sm text-gray-500 hover:text-gray-900"
-      >
-        &larr; {battlefield.name}
-      </Link>
-      <h1 className="mb-6 mt-3 text-xl font-medium">
-        {battlefield.name} settings
-        {battlefield.archived ? (
-          <span className="ml-3 rounded-full bg-amber-100 px-2 py-0.5 align-middle text-xs text-amber-800">
-            archived
-          </span>
-        ) : null}
-      </h1>
+    <section className="panel-scroll h-full overflow-y-auto px-6 pt-6 pb-8">
+      <h1 className="font-display text-heading font-bold tracking-[-0.015em]">{battlefield.name}</h1>
+      <p className="mt-1 text-item font-medium">
+        Battlefield settings{battlefield.archived ? ". Archived: hidden from the sidebar." : ""}
+      </p>
 
-      <section className="mb-10">
-        <div className={heading}>Search</div>
-        <BattlefieldForm
-          action={updateBattlefield.bind(null, battlefield.id)}
-          defaults={battlefield}
-          submitLabel="Save search settings"
-        />
-      </section>
+      <div className="mt-5 flex max-w-[60rem] flex-col gap-4">
+        <div className="glass-card px-5 py-[1.125rem]">
+          <CardLabel className="pb-4">Search</CardLabel>
+          <BattlefieldForm
+            action={updateBattlefield.bind(null, battlefield.id)}
+            defaults={battlefield}
+            submitLabel="Save search settings"
+          />
+        </div>
 
-      <section className="mb-10 space-y-3">
-        <div className={heading}>Automation</div>
-        <Switch
-          battlefieldId={battlefield.id}
-          field="autoPopulate"
-          initial={battlefield.autoPopulate}
-          title="Auto-Populate"
-        >
-          Re-runs this Battlefield&apos;s search on a schedule. Every run is billed by Apify per
-          job returned, up to {battlefield.maxJobs * locationCount} jobs a run at the current caps.
-          Nothing is scheduled yet: this switch takes effect once the scheduled job is set up at
-          deploy.
-        </Switch>
-        <Switch
-          battlefieldId={battlefield.id}
-          field="autoRank"
-          initial={battlefield.autoRank}
-          title="Auto-Rank"
-        >
-          After each search, sends only the new jobs to Claude Haiku for grading. Roughly a third
-          of a cent per job, so up to about ${((battlefield.maxJobs * locationCount * 0.35) / 100).toFixed(2)}{" "}
-          per search at the current caps.
-        </Switch>
-      </section>
+        <div className="glass-card px-5 py-[1.125rem]">
+          <CardLabel className="pb-2">Automation</CardLabel>
+          <Switch
+            battlefieldId={battlefield.id}
+            field="autoPopulate"
+            initial={battlefield.autoPopulate}
+            title="Auto-Populate"
+          >
+            Re-runs this Battlefield&apos;s search on a schedule. Every run is billed by Apify per job
+            returned, up to {battlefield.maxJobs * locationCount} jobs a run at the current caps. Nothing
+            is scheduled yet: this switch takes effect once the scheduled job is set up.
+          </Switch>
+          <Switch battlefieldId={battlefield.id} field="autoRank" initial={battlefield.autoRank} title="Auto-Rank">
+            After each search, sends only the new jobs to Claude Haiku for grading. Roughly a third of a
+            cent per job, so up to about ${((battlefield.maxJobs * locationCount * 0.35) / 100).toFixed(2)} per
+            search at the current caps.
+          </Switch>
+        </div>
 
-      <section className="mb-10">
-        <div className={heading}>Rubric</div>
-        <RubricEditor battlefieldId={battlefield.id} rubrics={rubrics} />
-      </section>
+        <div className="glass-card px-5 py-[1.125rem]">
+          <CardLabel>Rubric</CardLabel>
+          <RubricEditor battlefieldId={battlefield.id} rubrics={rubrics} />
+        </div>
 
-      <section className="border-t border-gray-200 pt-6">
-        <button
-          onClick={() => startArchive(() => setArchived(battlefield.id, !battlefield.archived))}
-          disabled={archiving}
-          className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:border-gray-500 disabled:opacity-50"
-        >
-          {battlefield.archived ? "Restore Battlefield" : "Archive Battlefield"}
-        </button>
-        <p className="mt-2 text-xs text-gray-400">
-          {battlefield.archived
-            ? "Brings it back into the Battlefield switcher."
-            : "Hides it from the switcher. Its jobs, grades and applications are kept, and you can restore it later."}
-        </p>
-      </section>
-    </main>
+        <div className="glass-card px-5 py-[1.125rem]">
+          <CardLabel className="pb-3">{battlefield.archived ? "Restore" : "Archive"}</CardLabel>
+          <button
+            onClick={() => startArchive(() => setArchived(battlefield.id, !battlefield.archived))}
+            disabled={archiving}
+            className={btnSecondary}
+          >
+            {battlefield.archived ? "Restore Battlefield" : "Archive Battlefield"}
+          </button>
+          <p className="mt-2 text-meta font-medium">
+            {battlefield.archived
+              ? "Brings it back into the sidebar."
+              : "Hides it from the sidebar. Its jobs, grades and applications are kept, and you can restore it later."}
+          </p>
+        </div>
+      </div>
+    </section>
   );
 }

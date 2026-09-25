@@ -1,9 +1,14 @@
 "use client";
 
+// Explore: one-off searches saved as waves. Same shell and patterns: a glass
+// search card, then the holding bay (past waves) beside the open wave's jobs.
+// Explore jobs are unranked, so their rows carry no score or grade.
+
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { elapsedSince, isActive, useNow, useRunStatus } from "../useRunStatus";
+import { CardLabel, btnDashed, btnPrimary, btnSecondary, field } from "../shell/ui";
 
 type Wave = {
   id: string;
@@ -15,8 +20,6 @@ type Wave = {
   runStatus: string;
   runError: string | null;
 };
-
-const searchingNow = (w: Wave) => w.runStatus === "running" || w.runStatus === "ingesting";
 type Job = {
   id: string;
   title: string;
@@ -27,9 +30,8 @@ type Job = {
 };
 type Battlefield = { id: string; slug: string; name: string };
 
-const button =
-  "rounded-md border px-3 py-1 text-sm disabled:cursor-not-allowed disabled:opacity-50";
-const heading = "mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400";
+const searchingNow = (w: Wave) => w.runStatus === "running" || w.runStatus === "ingesting";
+const errorMark = "font-semibold underline decoration-grade-unfit decoration-2 underline-offset-4";
 
 async function call(url: string, body: unknown) {
   const res = await fetch(url, {
@@ -71,48 +73,44 @@ function SearchForm() {
   }
 
   return (
-    <form onSubmit={search} className="mb-8 rounded-lg border border-gray-200 p-4">
-      <div className="flex gap-3">
-        <div className="flex-1">
-          <label className={heading} htmlFor="query">
-            Keywords
+    <form onSubmit={search} className="glass-card shrink-0 px-5 py-4">
+      <div className="flex gap-4">
+        <div className="min-w-0 flex-1">
+          <label htmlFor="query">
+            <CardLabel className="pb-1.5">Keywords</CardLabel>
           </label>
           <input
             id="query"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="e.g. content marketing manager"
-            className="w-full rounded-md border border-gray-200 px-2 py-1.5 text-sm"
+            className={`${field} w-full placeholder:text-white placeholder:opacity-80`}
           />
-          <p className="mt-1 text-xs text-gray-400">Every word must appear in the job title.</p>
+          <p className="mt-1 text-label font-medium opacity-85">Every word must appear in the job title.</p>
         </div>
-        <div className="w-56">
-          <label className={heading} htmlFor="locations">
-            Locations
+        <div className="w-[15rem] shrink-0">
+          <label htmlFor="locations">
+            <CardLabel className="pb-1.5">Locations</CardLabel>
           </label>
           <textarea
             id="locations"
             value={locations}
             onChange={(e) => setLocations(e.target.value)}
             rows={2}
-            className="w-full rounded-md border border-gray-200 px-2 py-1.5 text-sm"
+            className={`${field} w-full resize-none`}
           />
-          <p className="mt-1 text-xs text-gray-400">One per line. Each is a separate search.</p>
+          <p className="mt-1 text-label font-medium opacity-85">One per line. Each is a separate search.</p>
         </div>
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-3">
-        <button
-          type="submit"
-          disabled={busy || !query.trim()}
-          className={`${button} border-gray-900 bg-gray-900 text-white`}
-        >
+        <button type="submit" disabled={busy || !query.trim()} className={btnPrimary}>
           {busy ? "Starting..." : "Search"}
         </button>
-        <span className="text-xs text-gray-400">
-          Costs Apify credits: up to 50 jobs per location, from 500 career sites. The results are
-          saved, so reopening them later is free.
+        <span className="text-meta font-medium">
+          Costs Apify credits: up to 50 jobs per location, from 500 career sites. Results are saved,
+          so reopening them later is free.
         </span>
-        {error ? <span className="text-sm text-red-700">{error}</span> : null}
+        {error ? <span className={`text-meta ${errorMark}`}>{error}</span> : null}
       </div>
     </form>
   );
@@ -134,18 +132,18 @@ function WaveProgress({ runId }: { runId: string }) {
   }, [run, router]);
 
   if (run?.status === "failed") {
-    return <p className="mb-4 text-sm text-red-700">Search failed: {run.error}</p>;
+    return <p className={`text-item ${errorMark}`}>Search failed: {run.error}</p>;
   }
   return (
-    <div className="mb-4 rounded-lg bg-gray-50 p-3 text-sm text-gray-700">
-      <div className="tabular-nums">
+    <div className="glass-card px-[1.125rem] py-3.5 text-item">
+      <div className="font-medium tabular-nums">
         {run?.status === "ingesting"
           ? "Saving the results..."
           : `Searching... ${run && now ? `${elapsedSince(run.startedAt, now)} - ` : ""}${
               run?.progress.join(" / ") || "starting up"
             }`}
       </div>
-      <p className="mt-1 text-xs text-gray-400">
+      <p className="mt-1 text-meta font-medium opacity-85">
         The search runs on Apify, so you can leave this page; it is saved here when it finishes.
       </p>
     </div>
@@ -155,9 +153,7 @@ function WaveProgress({ runId }: { runId: string }) {
 function Promote({ wave, battlefields }: { wave: Wave; battlefields: Battlefield[] }) {
   const [target, setTarget] = useState(battlefields[0]?.id ?? "");
   const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<
-    { text: string; slug?: string; error?: boolean } | null
-  >(null);
+  const [result, setResult] = useState<{ text: string; slug?: string; error?: boolean } | null>(null);
 
   async function send() {
     setBusy(true);
@@ -178,15 +174,17 @@ function Promote({ wave, battlefields }: { wave: Wave; battlefields: Battlefield
   }
 
   return (
-    <div className="mb-4 rounded-lg bg-gray-50 p-3 text-sm">
+    <div className="glass-card px-[1.125rem] py-3.5 text-item">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-gray-600">Send these {wave.jobCount} jobs to</span>
         {battlefields.length ? (
           <>
+            <span className="font-medium">
+              Send these {wave.jobCount} {wave.jobCount === 1 ? "job" : "jobs"} to
+            </span>
             <select
               value={target}
               onChange={(e) => setTarget(e.target.value)}
-              className="rounded border border-gray-200 bg-white px-1 py-0.5"
+              className={`${field} py-1`}
             >
               {battlefields.map((b) => (
                 <option key={b.id} value={b.id}>
@@ -197,25 +195,22 @@ function Promote({ wave, battlefields }: { wave: Wave; battlefields: Battlefield
             <button
               onClick={send}
               disabled={busy || !target || wave.jobCount === 0}
-              className={`${button} border-gray-300 bg-white text-gray-700 hover:border-gray-500`}
+              className={`${btnSecondary} py-1.5`}
             >
               {busy ? "Sending..." : "Send"}
             </button>
-            <span className="text-gray-400">or</span>
+            <span className="font-medium">or</span>
           </>
         ) : null}
-        <Link
-          href={`/battlefields/new?fromWave=${wave.id}`}
-          className="text-gray-700 underline hover:text-gray-900"
-        >
-          start a new Battlefield from this search
+        <Link href={`/battlefields/new?fromWave=${wave.id}`} className={`${btnDashed} py-1.5`}>
+          Start a new Battlefield from this search
         </Link>
       </div>
       {result ? (
-        <p className={`mt-2 ${result.error ? "text-red-700" : "text-gray-700"}`}>
+        <p className={`mt-2 ${result.error ? errorMark : "font-medium"}`}>
           {result.text}{" "}
           {result.slug ? (
-            <Link href={`/battlefields/${result.slug}`} className="underline">
+            <Link href={`/battlefields/${result.slug}`} className="underline underline-offset-2">
               Open it
             </Link>
           ) : null}
@@ -240,104 +235,118 @@ export default function Explore({
   const current = waves.find((w) => w.id === currentId) ?? null;
 
   return (
-    <main className="mx-auto flex max-w-6xl gap-8 px-6 py-10">
-      <aside className="w-60 shrink-0">
-        <Link href="/" className="text-sm text-gray-500 hover:text-gray-900">
-          &larr; Discovery
-        </Link>
-        <h2 className={`${heading} mt-6`}>Holding bay</h2>
-        {waves.length === 0 ? (
-          <p className="text-sm text-gray-400">No saved searches yet.</p>
-        ) : (
-          <ul className="space-y-1">
-            {waves.map((w) => (
-              <li key={w.id}>
-                <Link
-                  href={`/explore?wave=${w.id}`}
-                  className={`block rounded-md px-2 py-1.5 ${
-                    w.id === currentId ? "bg-gray-900 text-white" : "hover:bg-gray-100"
-                  }`}
-                >
-                  <div className="truncate text-sm">{w.query}</div>
-                  <div
-                    className={`text-[11px] ${w.id === currentId ? "text-gray-300" : "text-gray-400"}`}
-                  >
-                    {w.when} -{" "}
-                    {searchingNow(w)
-                      ? "searching..."
-                      : w.runStatus === "failed"
-                        ? "failed"
-                        : `${w.jobCount} ${w.jobCount === 1 ? "job" : "jobs"}`}
-                  </div>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
-      </aside>
+    <section className="flex h-full min-h-0 flex-col gap-4 px-6 pt-6">
+      <div className="shrink-0">
+        <h1 className="font-display text-heading font-bold tracking-[-0.015em]">Explore</h1>
+        <p className="mt-1 text-item font-medium">
+          One-off searches, saved in the holding bay. Nothing is ranked here.
+        </p>
+      </div>
 
-      <section className="min-w-0 flex-1">
-        <h1 className="mb-4 text-xl font-medium">Explore</h1>
-        <SearchForm />
+      <SearchForm />
+
+      <div className="flex min-h-0 flex-1 gap-4">
+        <div className="glass-card flex w-[17.5rem] shrink-0 flex-col py-3.5">
+          <CardLabel className="px-[1.125rem] pb-2">Holding bay</CardLabel>
+          {waves.length === 0 ? (
+            <p className="px-[1.125rem] text-item font-medium">No saved searches yet. Run one above.</p>
+          ) : (
+            <ul className="panel-scroll min-h-0 flex-1 overflow-y-auto px-2">
+              {waves.map((w) => (
+                <li key={w.id}>
+                  <Link
+                    href={`/explore?wave=${w.id}`}
+                    className={`flex items-center gap-3 rounded-row px-2.5 py-2 ${
+                      w.id === currentId ? "bg-row-selected" : "hover:bg-row-selected"
+                    }`}
+                  >
+                    <span className="w-7 shrink-0 text-right font-mono text-score font-medium">
+                      {searchingNow(w) || w.runStatus === "failed" ? "–" : w.jobCount}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-item leading-[1.35] font-medium">{w.query}</span>
+                      <span className="block truncate text-meta leading-[1.35] font-medium">{w.when}</span>
+                    </span>
+                    {searchingNow(w) || w.runStatus === "failed" ? (
+                      <span className="shrink-0 text-meta font-semibold">
+                        {searchingNow(w) ? "searching" : "failed"}
+                      </span>
+                    ) : null}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
 
         {current ? (
-          <>
-            <div className="mb-3 border-b border-gray-200 pb-2">
-              <div className="text-lg font-medium">&ldquo;{current.query}&rdquo;</div>
-              <div className="text-xs text-gray-500">
-                {current.when}
-                {current.locations.length ? ` - ${current.locations.join(", ")}` : ""} -{" "}
-                {searchingNow(current)
-                  ? "searching"
-                  : `${current.jobCount} ${current.jobCount === 1 ? "job" : "jobs"}, unranked`}
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
+            <div className="shrink-0 px-1">
+              <div className="truncate text-title leading-tight font-semibold">{current.query}</div>
+              <div className="mt-1 text-meta font-medium">
+                {[
+                  current.when,
+                  current.locations.join(", ") || null,
+                  searchingNow(current)
+                    ? "searching"
+                    : `${current.jobCount} ${current.jobCount === 1 ? "job" : "jobs"}, unranked`,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
               </div>
             </div>
 
-            {searchingNow(current) && current.runId ? (
-              <WaveProgress runId={current.runId} />
-            ) : current.runStatus === "failed" ? (
-              <p className="mb-4 text-sm text-red-700">Search failed: {current.runError}</p>
-            ) : (
-              <Promote wave={current} battlefields={battlefields} />
-            )}
+            <div className="shrink-0">
+              {searchingNow(current) && current.runId ? (
+                <WaveProgress runId={current.runId} />
+              ) : current.runStatus === "failed" ? (
+                <p className={`text-item ${errorMark}`}>Search failed: {current.runError}</p>
+              ) : (
+                <Promote wave={current} battlefields={battlefields} />
+              )}
+            </div>
 
-            <ul>
-              {jobs.map((job) => (
-                <li key={job.id} className="border-b border-gray-100">
-                  <div className="flex items-center gap-4 px-2 py-2.5 hover:bg-gray-50">
+            <ul className="panel-scroll min-h-0 flex-1 overflow-y-auto pb-4">
+              {jobs.map((job, i) => (
+                <li key={job.id}>
+                  <div
+                    className={`flex items-center gap-[0.8125rem] rounded-row px-3 py-[0.5625rem] ${
+                      openId === job.id ? "bg-row-selected" : "hover:bg-row-selected"
+                    }`}
+                  >
+                    <span className="w-7 shrink-0 text-right font-mono text-meta font-medium">{i + 1}</span>
                     <button
                       onClick={() => setOpenId(openId === job.id ? null : job.id)}
                       className="min-w-0 flex-1 text-left"
+                      aria-expanded={openId === job.id}
                     >
-                      <div className="truncate text-[15px] font-medium leading-tight">
-                        {job.title}
-                      </div>
-                      <div className="truncate text-[13px] leading-tight text-gray-500">
-                        {job.company} - {job.location}
-                      </div>
+                      <span className="block truncate text-item leading-[1.35] font-medium">{job.title}</span>
+                      <span className="block truncate text-meta leading-[1.35] font-medium">
+                        {[job.company, job.location].filter(Boolean).join(" - ")}
+                      </span>
                     </button>
                     <a
                       href={job.url}
                       target="_blank"
-                      className="shrink-0 text-xs text-gray-500 underline hover:text-gray-900"
+                      className="shrink-0 text-meta font-semibold underline underline-offset-2"
                     >
                       Open posting
                     </a>
                   </div>
                   {openId === job.id ? (
-                    <p className="whitespace-pre-wrap px-2 pb-4 text-[13px] leading-relaxed text-gray-600">
+                    <p className="px-3 pt-1 pb-4 pl-[3.5rem] text-item leading-[1.55] whitespace-pre-wrap">
                       {job.description ?? "No description."}
                     </p>
                   ) : null}
                 </li>
               ))}
+              {jobs.length === 0 && current.runStatus === "done" ? (
+                <li className="px-3 py-4 text-item font-medium">This search found no jobs.</li>
+              ) : null}
             </ul>
-            {jobs.length === 0 && current.runStatus === "done" ? (
-              <p className="py-6 text-sm text-gray-400">This search found no jobs.</p>
-            ) : null}
-          </>
+          </div>
         ) : null}
-      </section>
-    </main>
+      </div>
+    </section>
   );
 }

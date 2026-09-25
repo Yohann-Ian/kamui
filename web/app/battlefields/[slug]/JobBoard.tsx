@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { setStatus, saveNote, dismissJob } from "../../actions";
 import { markViewed } from "../actions";
-import { CardLabel, GradeDot, btnPrimary, btnSecondary, daysAgo, field, ordinal } from "../../shell/ui";
+import { CardLabel, GradeDot, StatCard, btnPrimary, btnSecondary, daysAgo, field, ordinal } from "../../shell/ui";
 import Toolbar from "./Toolbar";
 
 const STAGES = ["Aim", "Applied", "Screening", "Interview", "Offer", "Rejected", "Dropped"];
@@ -173,7 +173,7 @@ export default function JobBoard({
                     className={`rounded-btn border px-3 py-1.5 text-button font-semibold ${
                       selected.status === stage
                         ? "border-autumn-deep bg-autumn-deep"
-                        : "border-secondary-edge bg-secondary hover:bg-white/20"
+                        : "border-secondary-edge bg-secondary hover:bg-hover"
                     }`}
                   >
                     {stage}
@@ -193,37 +193,31 @@ export default function JobBoard({
               ) : null}
             </div>
 
-            <div className="flex w-stat shrink-0 flex-col rounded-card bg-autumn px-[1.0625rem] py-4">
-              <CardLabel>Score</CardLabel>
-              <div className="mt-1 font-mono text-big font-semibold leading-[1.1]">
-                {selected.score ?? "–"}
-              </div>
-              <div className="mt-1 text-label font-medium leading-snug opacity-85">
-                {scoreRank ? `${ordinal(scoreRank)} highest in this Battlefield` : "Not ranked yet"}
-              </div>
-            </div>
-
-            <div className="flex w-stat shrink-0 flex-col rounded-card bg-slate px-[1.0625rem] py-4">
-              <CardLabel>Grade</CardLabel>
-              <div className="mt-1.5 text-grade font-semibold leading-tight">
-                {selected.grade ?? "Unranked"}
-              </div>
-              <div className="mt-1 text-label font-medium leading-snug opacity-85">
-                {selected.grade ? GRADE_NOTE[selected.grade] ?? "" : "Rank this Battlefield to grade it"}
-                {selected.staleRubricVersion !== null ? ` (rubric v${selected.staleRubricVersion})` : ""}
-              </div>
-            </div>
-
+            <StatCard
+              label="Score"
+              colour="bg-autumn"
+              mono
+              value={selected.score ?? "–"}
+              sub={scoreRank ? `${ordinal(scoreRank)} highest in this Battlefield` : "Not ranked yet"}
+            />
+            <StatCard
+              label="Grade"
+              colour="bg-slate"
+              size="text-grade"
+              value={selected.grade ?? "Unranked"}
+              sub={`${selected.grade ? GRADE_NOTE[selected.grade] ?? "" : "Rank this Battlefield to grade it"}${
+                selected.staleRubricVersion !== null ? ` (rubric v${selected.staleRubricVersion})` : ""
+              }`}
+            />
             {selected.pay ? (
-              <div className="flex w-stat shrink-0 flex-col rounded-card bg-lavender px-[1.0625rem] py-4">
-                <CardLabel>Pay</CardLabel>
-                <div className="mt-1.5 font-mono text-title font-semibold leading-tight">
-                  {payValue(selected.pay)}
-                </div>
-                <div className="mt-1 text-label font-medium leading-snug opacity-85">
-                  {payNote(selected.pay)}
-                </div>
-              </div>
+              <StatCard
+                label="Pay"
+                colour="bg-lavender"
+                mono
+                size="text-title"
+                value={payValue(selected.pay)}
+                sub={payNote(selected.pay)}
+              />
             ) : null}
           </div>
 
@@ -316,7 +310,7 @@ export default function JobBoard({
                   onClick={() => dismissJob(job.id)}
                   title="Dismiss from this Battlefield"
                   aria-label={`Dismiss ${job.title}`}
-                  className="absolute top-1/2 right-2 -translate-y-1/2 rounded-btn px-2 py-0.5 text-item opacity-0 group-hover:opacity-100 hover:bg-white/20 focus:opacity-100"
+                  className="absolute top-1/2 right-2 -translate-y-1/2 rounded-btn px-2 py-0.5 text-item opacity-0 group-hover:opacity-100 hover:bg-hover focus:opacity-100"
                 >
                   ×
                 </button>

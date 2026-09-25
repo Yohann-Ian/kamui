@@ -137,7 +137,7 @@ export default function Sidebar({
             <button
               type="button"
               onClick={() => setBackground(backgrounds[(bgIndex + 1) % backgrounds.length])}
-              className="rounded-btn border border-secondary-edge bg-secondary px-2.5 py-1 text-label font-semibold hover:bg-white/20"
+              className="rounded-btn border border-secondary-edge bg-secondary px-2.5 py-1 text-label font-semibold hover:bg-hover"
               title="Next background photograph"
             >
               Next

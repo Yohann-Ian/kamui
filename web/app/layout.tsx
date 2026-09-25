@@ -78,7 +78,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
 
         {/* 3. the glass panel, inset from the screen edge, holding everything */}
         <div className="relative flex h-dvh p-frame">
-          <div className="frost-panel relative flex min-w-0 flex-1 overflow-hidden rounded-panel border border-panel-edge shadow-[0_30px_80px_rgba(0,0,0,0.45)]">
+          <div className="frost-panel relative flex min-w-0 flex-1 overflow-hidden rounded-panel border border-panel-edge shadow-panel">
             <Suspense>
               <Sidebar battlefields={battlefields} backgrounds={backgrounds} />
             </Suspense>

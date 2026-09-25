@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import type { FormState } from "./actions";
+import { btnPrimary } from "../shell/ui";
 
 export type SearchFields = {
   name: string;
@@ -13,9 +14,9 @@ export type SearchFields = {
   maxJobsPerBoard: number;
 };
 
-const input = "w-full rounded-md border border-gray-200 px-2 py-1.5 text-sm";
-const label = "mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-400";
-const hint = "mt-1 text-xs text-gray-400";
+const input = "glass-field w-full px-2.5 py-1.5 text-item";
+const label = "mb-1.5 block text-label font-semibold uppercase tracking-[0.1em] opacity-85";
+const hint = "mt-1 text-label font-medium opacity-85";
 
 export default function BattlefieldForm({
   action,
@@ -133,12 +134,16 @@ export default function BattlefieldForm({
         <button
           type="submit"
           disabled={pending}
-          className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+          className={btnPrimary}
         >
           {pending ? "Saving..." : submitLabel}
         </button>
-        {state.error ? <span className="text-sm text-red-700">{state.error}</span> : null}
-        {state.saved ? <span className="text-sm text-gray-600">{state.saved}</span> : null}
+        {state.error ? (
+          <span className="text-meta font-semibold underline decoration-grade-unfit decoration-2 underline-offset-4">
+            {state.error}
+          </span>
+        ) : null}
+        {state.saved ? <span className="text-meta font-medium">{state.saved}</span> : null}
       </div>
     </form>
   );

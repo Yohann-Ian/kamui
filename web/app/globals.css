@@ -41,6 +41,10 @@
   --color-row-selected: rgba(255, 255, 255, 0.07);
   --color-bf-active: rgba(192, 138, 85, 0.22);
   --color-tile-edge: rgba(255, 255, 255, 0.18);
+  --color-hover: rgba(255, 255, 255, 0.2); /* hover fill on secondary controls */
+
+  /* the panel's drop shadow (reference files) */
+  --shadow-panel: 0 30px 80px rgba(0, 0, 0, 0.45);
 
   /* type scale (section 2): only these sizes */
   --text-banner: 4.875rem; /* 78 kana banner */
@@ -126,7 +130,7 @@ input[type="range"] {
 
 /* Form fields on glass */
 .glass-field {
-  background: rgba(0, 0, 0, 0.22);
+  background: var(--color-sidebar);
   border: 1px solid var(--color-card-edge);
   border-radius: var(--radius-btn);
   color: #ffffff;

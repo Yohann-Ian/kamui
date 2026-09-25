@@ -10,7 +10,7 @@ export default async function Tracking({
   searchParams: Promise<{ battlefield?: string }>;
 }) {
   const params = await searchParams;
-  const { all, current } = await resolveBattlefield(params.battlefield);
+  const { current } = await resolveBattlefield(params.battlefield);
 
   const [rubric, apps] = await Promise.all([
     prisma.rubric.findFirst({ where: { battlefieldId: current?.id ?? "", active: true } }),
@@ -38,5 +38,11 @@ export default async function Tracking({
     };
   });
 
-  return <TrackingBoard key={current?.slug} jobs={data} battlefields={all} current={current?.slug ?? ""} />;
+  return (
+    <TrackingBoard
+      key={current?.slug}
+      jobs={data}
+      battlefield={current ? { slug: current.slug, name: current.name } : null}
+    />
+  );
 }

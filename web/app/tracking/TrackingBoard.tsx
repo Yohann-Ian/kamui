@@ -1,9 +1,13 @@
 "use client";
 
+// Tracking: the jobs you have set a status on, grouped by stage. Same shell and
+// patterns as Discovery: the selected job's card with Score and Grade, then the
+// grouped list in the job-list row pattern.
+
 import { useState } from "react";
 import Link from "next/link";
 import { setStatus, saveNote } from "../actions";
-type BattlefieldLink = { slug: string; name: string };
+import { CardLabel, GradeDot, StatCard, btnPrimary, field } from "../shell/ui";
 
 const STAGES = ["Aim", "Applied", "Screening", "Interview", "Offer", "Rejected", "Dropped"];
 
@@ -23,169 +27,159 @@ type Job = {
 
 export default function TrackingBoard({
   jobs,
-  battlefields,
-  current,
+  battlefield,
 }: {
   jobs: Job[];
-  battlefields: BattlefieldLink[];
-  current: string;
+  battlefield: { slug: string; name: string } | null;
 }) {
   const [selectedId, setSelectedId] = useState(jobs[0]?.id ?? null);
   const selected = jobs.find((j) => j.id === selectedId) ?? null;
+  const notedStages = selected ? STAGES.filter((s) => selected.notes[s]) : [];
 
   return (
-    <main className="mx-auto flex max-w-6xl gap-6 px-6 py-10">
-      <section className="min-w-0 flex-1">
-        <div className="mb-4 flex items-center justify-between border-b border-gray-200 pb-3">
-          <span>{battlefields.find((b) => b.slug === current)?.name}</span>
-          <div className="flex items-baseline gap-4">
-            <span className="text-sm text-gray-500">{jobs.length} tracked</span>
-            <Link
-              href={`/battlefields/${current}`}
-              className="text-sm text-gray-500 hover:text-gray-900"
-            >
+    <section className="flex h-full min-h-0 flex-col gap-4 px-6 pt-6">
+      <div className="shrink-0">
+        <h1 className="font-display text-heading font-bold tracking-[-0.015em]">Tracking</h1>
+        <p className="mt-1 text-item font-medium">
+          {battlefield ? `${battlefield.name}, ${jobs.length} tracked` : "No Battlefields yet"}
+        </p>
+      </div>
+
+      {jobs.length === 0 ? (
+        <p className="text-item font-medium">
+          Nothing tracked{battlefield ? ` in ${battlefield.name}` : ""} yet. Set a status on a job in{" "}
+          {battlefield ? (
+            <Link href={`/battlefields/${battlefield.slug}`} className="underline underline-offset-2">
               Discovery
             </Link>
-          </div>
-        </div>
+          ) : (
+            "Discovery"
+          )}
+          .
+        </p>
+      ) : null}
 
-        {STAGES.map((stage) => {
-          const inStage = jobs.filter((j) => j.status === stage);
-          if (inStage.length === 0) return null;
-          return (
-            <section key={stage} className="mb-6">
-              <h2 className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">
-                {stage} ({inStage.length})
-              </h2>
-              <ul className="border-t border-gray-100">
-                {inStage.map((job) => (
-                  <li key={job.id}>
-                    <button
-                      onClick={() => setSelectedId(job.id)}
-                      className={`flex w-full items-center gap-4 border-b border-gray-100 px-2 py-2.5 text-left ${
-                        job.id === selectedId ? "bg-gray-50" : "hover:bg-gray-50"
-                      }`}
-                    >
-                      <span className="w-8 shrink-0 text-right text-sm tabular-nums text-gray-400">
-                        {job.score ?? "-"}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-[15px] font-medium leading-tight">
-                          {job.title}
-                        </div>
-                        <div className="truncate text-[13px] leading-tight text-gray-500">
-                          {job.company} - {job.location}
-                        </div>
-                      </div>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          );
-        })}
-
-        {jobs.length === 0 ? (
-          <p className="text-sm text-gray-400">
-            Nothing tracked yet. Set a status on a job in Discovery.
-          </p>
-        ) : null}
-      </section>
-
-      <aside className="sticky top-10 h-fit w-96 shrink-0 rounded-lg border border-gray-200 p-5">
-        {selected ? (
-          <div>
-            <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">
-              {selected.score !== null ? `${selected.score} - ${selected.grade}` : "unranked"}
-            </div>
-            <h2 className="text-lg font-medium leading-tight">{selected.title}</h2>
-            <p className="mt-1 text-sm text-gray-500">
-              {selected.company} - {selected.location}
-            </p>
-
-            <a
-              href={selected.url}
-              target="_blank"
-              className="mt-4 inline-block rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white"
-            >
-              Open posting
-            </a>
-
-            <div className="mt-5">
-              <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
-                Status
-              </div>
-              <div className="flex flex-wrap gap-1.5">
+      {selected ? (
+        <>
+          <div className="flex shrink-0 gap-3.5">
+            <div className="glass-card min-w-0 flex-1 px-5 py-[1.125rem]">
+              <CardLabel>Selected</CardLabel>
+              <h2 className="mt-2 text-title leading-tight font-semibold">{selected.title}</h2>
+              <p className="mt-1.5 text-item font-medium">
+                {[selected.company, selected.location].filter(Boolean).join(" · ")}
+              </p>
+              <div className="mt-4 flex flex-wrap items-center gap-1.5">
+                <a href={selected.url} target="_blank" className={`${btnPrimary} mr-1.5`}>
+                  Open posting
+                </a>
                 {STAGES.map((stage) => (
                   <button
                     key={stage}
                     onClick={() => setStatus(selected.id, stage)}
-                    className={`rounded-md border px-2.5 py-1 text-xs ${
+                    aria-pressed={selected.status === stage}
+                    className={`rounded-btn border px-3 py-1.5 text-button font-semibold ${
                       selected.status === stage
-                        ? "border-gray-900 bg-gray-900 text-white"
-                        : "border-gray-200 text-gray-600 hover:border-gray-400"
+                        ? "border-autumn-deep bg-autumn-deep"
+                        : "border-secondary-edge bg-secondary hover:bg-hover"
                     }`}
                   >
                     {stage}
                   </button>
                 ))}
               </div>
-
-              <div className="mt-3">
-                <div className="mb-1 text-xs text-gray-400">Note for {selected.status}</div>
-                <textarea
-                  key={selected.id + selected.status}
-                  defaultValue={selected.notes[selected.status] ?? ""}
-                  onBlur={(e) => saveNote(selected.id, selected.status, e.target.value)}
-                  placeholder="Write a note, it saves when you click away"
-                  className="w-full rounded-md border border-gray-200 p-2 text-[13px]"
-                  rows={3}
-                />
-              </div>
+              <textarea
+                key={selected.id + selected.status}
+                defaultValue={selected.notes[selected.status] ?? ""}
+                onBlur={(e) => saveNote(selected.id, selected.status, e.target.value)}
+                placeholder={`Note for ${selected.status}, saves when you click away`}
+                aria-label={`Note for ${selected.status}`}
+                className={`${field} mt-3 w-full resize-none placeholder:text-white placeholder:opacity-80`}
+                rows={2}
+              />
             </div>
+            <StatCard
+              label="Score"
+              colour="bg-autumn"
+              mono
+              value={selected.score ?? "–"}
+              sub={selected.score != null ? "Under the current rubric" : "Not ranked yet"}
+            />
+            <StatCard
+              label="Stage"
+              colour="bg-slate"
+              size="text-grade"
+              value={selected.status}
+              sub={selected.grade ? `Graded ${selected.grade}` : "Unranked"}
+            />
+          </div>
 
-            <div className="mt-5">
-              <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">
-                All notes
-              </div>
-              {Object.keys(selected.notes).length === 0 ? (
-                <p className="text-[13px] text-gray-400">No notes yet.</p>
-              ) : (
-                <ul className="space-y-2">
-                  {STAGES.filter((s) => selected.notes[s]).map((s) => (
-                    <li key={s}>
-                      <div className="text-[11px] uppercase tracking-wide text-gray-400">{s}</div>
-                      <p className="whitespace-pre-wrap text-[13px] text-gray-600">
-                        {selected.notes[s]}
-                      </p>
+          {notedStages.length || selected.reason ? (
+            <div className="glass-card panel-scroll max-h-[28vh] shrink-0 overflow-y-auto px-[1.125rem] py-3.5">
+              {notedStages.length ? (
+                <>
+                  <CardLabel>All notes</CardLabel>
+                  <ul className="mt-2 space-y-2">
+                    {notedStages.map((s) => (
+                      <li key={s} className="text-item leading-[1.55]">
+                        <span className="font-semibold">{s}:</span>{" "}
+                        <span className="whitespace-pre-wrap">{selected.notes[s]}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              ) : null}
+              {selected.reason ? (
+                <>
+                  <CardLabel className={notedStages.length ? "mt-3" : ""}>Why this grade</CardLabel>
+                  <p className="mt-2 text-item leading-[1.55]">{selected.reason}</p>
+                </>
+              ) : null}
+            </div>
+          ) : null}
+        </>
+      ) : null}
+
+      {jobs.length ? (
+        <div className="panel-scroll min-h-0 flex-1 overflow-y-auto pb-4">
+          {STAGES.map((stage) => {
+            const inStage = jobs.filter((j) => j.status === stage);
+            if (inStage.length === 0) return null;
+            return (
+              <section key={stage} className="mb-3">
+                <CardLabel className="px-1 pb-1.5">
+                  {stage} ({inStage.length})
+                </CardLabel>
+                <ul>
+                  {inStage.map((job) => (
+                    <li key={job.id}>
+                      <button
+                        onClick={() => setSelectedId(job.id)}
+                        className={`flex w-full items-center gap-[0.8125rem] rounded-row px-3 py-[0.5625rem] text-left ${
+                          job.id === selectedId ? "bg-row-selected" : "hover:bg-row-selected"
+                        } ${job.grade === "Unfit" ? "opacity-[0.72]" : ""}`}
+                      >
+                        <span className="w-7 shrink-0 text-right font-mono text-score font-medium">
+                          {job.score ?? "–"}
+                        </span>
+                        <GradeDot grade={job.grade} />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-item leading-[1.35] font-medium">
+                            {job.title}
+                          </span>
+                          <span className="block truncate text-meta leading-[1.35] font-medium">
+                            {[job.company, job.location].filter(Boolean).join(" - ")}
+                          </span>
+                        </span>
+                        <span className="shrink-0 text-meta font-semibold">{job.grade ?? "unranked"}</span>
+                      </button>
                     </li>
                   ))}
                 </ul>
-              )}
-            </div>
-
-            {selected.reason ? (
-              <div className="mt-5">
-                <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">
-                  Why this grade
-                </div>
-                <p className="text-sm text-gray-700">{selected.reason}</p>
-              </div>
-            ) : null}
-
-            <div className="mt-5">
-              <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">
-                Description
-              </div>
-              <p className="whitespace-pre-wrap text-[13px] leading-relaxed text-gray-600">
-                {selected.description ?? "No description."}
-              </p>
-            </div>
-          </div>
-        ) : (
-          <p className="text-sm text-gray-400">Select a job.</p>
-        )}
-      </aside>
-    </main>
+              </section>
+            );
+          })}
+        </div>
+      ) : null}
+    </section>
   );
 }
