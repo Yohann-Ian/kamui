@@ -154,8 +154,12 @@ export default function JobBoard({
       </div>
 
       <div className="flex min-h-0 flex-1 gap-4">
+        {/* Widths: All jobs starts at 25rem, then the remaining space is shared
+            0.34 / 1 / 0.66 between All jobs, the selected card and Why this grade.
+            That keeps Why this grade 30% narrower than the selected card (0.66 rather
+            than 0.7, because each card's padding also counts toward its width). */}
         {/* All jobs: controls, then the list at full height */}
-        <div className="flex w-[25rem] shrink-0 flex-col">
+        <div className="flex min-w-0 shrink-0 grow-[0.34] basis-[25rem] flex-col">
           <CardLabel className="px-1">All jobs</CardLabel>
           <div className="mt-3.5 px-1">
             <Toolbar
@@ -248,8 +252,8 @@ export default function JobBoard({
 
         {/* The selected job: its card, and a tall card to read it in */}
         {selected ? (
-          <div className="flex min-h-0 min-w-0 flex-1 gap-4 pb-4">
-            <div className="glass-card panel-scroll flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto px-5 py-[1.125rem]">
+          <>
+            <div className="glass-card panel-scroll flex min-h-0 min-w-0 mb-4 grow basis-0 flex-col overflow-y-auto px-5 py-[1.125rem]">
               <CardLabel>Selected</CardLabel>
               <h2 className="mt-2 text-title leading-tight font-semibold">
                 <span className={selected.closed ? "mr-2 line-through" : ""}>{selected.title}</span>
@@ -334,7 +338,7 @@ export default function JobBoard({
               ) : null}
             </div>
 
-            <div className="glass-card flex min-h-0 min-w-0 flex-1 flex-col px-5 py-[1.125rem]">
+            <div className="glass-card flex min-h-0 min-w-0 mb-4 grow-[0.66] basis-0 flex-col px-5 py-[1.125rem]">
               <CardLabel>Why this grade</CardLabel>
               <p className="mt-2 text-item leading-[1.55]">
                 {selected.reason ?? "Not ranked yet. Rank this Battlefield to grade it."}
@@ -351,7 +355,7 @@ export default function JobBoard({
                 {selected.description ?? "No description."}
               </p>
             </div>
-          </div>
+          </>
         ) : null}
       </div>
     </section>
