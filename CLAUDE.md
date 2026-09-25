@@ -43,7 +43,9 @@ One Next.js app and one Postgres database, deployed on Railway as three services
 
 - **Battlefield** — keywords (`titleIncludes`), `titleExcludes`, `locations`, caps
   (`maxBoards`, `maxJobs`, `maxJobsPerBoard`), and the `autoPopulate` / `autoRank`
-  switches, both off by default. `archived` hides it from the switcher.
+  switches, both off by default. `archived` hides it from the sidebar.
+  `lastViewedAt` is set when its Discovery opens; the homepage counts jobs first
+  seen after it as "new".
 - **Job** — one row per posting per Battlefield. `atsJobId` is the ATS job id; dedup
   is per Battlefield on `@@unique([battlefieldId, atsJobId])`, so the same posting can
   live in two Battlefields. `battlefieldId` is null for jobs that only exist in an
@@ -71,9 +73,27 @@ One Next.js app and one Postgres database, deployed on Railway as three services
   only run when the user clicks Search New / Rank / Explore's Search, or turns on
   Auto-Populate / Auto-Rank for a Battlefield. A ranked job stays ranked.
 - **Every route that costs money writes a Run row.**
-- **Battlefields** are created, edited and archived in the UI (`/battlefields/new`,
-  `/battlefields/<slug>/settings`). Pages pick one with `?battlefield=<slug>`,
-  falling back to the oldest non-archived one. Slugs never change after creation.
+- **Routes**: `/` is the homepage; a Battlefield's Discovery is
+  `/battlefields/<slug>`, its settings `/battlefields/<slug>/settings`; Tracking takes
+  `?battlefield=<slug>` (falling back to the oldest non-archived one). Old
+  `/?battlefield=<slug>` links redirect. Slugs never change after creation.
+- **Design**: `kamui-design-package/DESIGN-SYSTEM.md` is the source of truth for all
+  UI, with reference screens in `kamui-design-package/reference/`. In short: a glass
+  panel over a photograph; all text #FFFFFF (recede with opacity >= 0.8, size or
+  weight, never a grey; the only exceptions are the Frost readouts and the homepage's
+  highlighted count); only the sizes in its type scale (the `text-*` tokens in
+  `globals.css`); grades as 10px dots, never pills; coloured cards only for one
+  selected item; lists use the job-list row pattern. Use the theme tokens in
+  `web/app/globals.css`, never raw hex. If a screen needs something the system does
+  not cover, add it to DESIGN-SYSTEM.md first. After UI work, run the audit in
+  `kamui-design-package/CLAUDE-CODE-PROMPTS.md` (Phase 7).
+- **Scaling**: every size is in rem and the root font size is
+  `clamp(15px, min(1.111vw, 1.633vh), 36px)`, so the UI matches the 1440x980 design
+  and grows proportionally on 2K/4K screens. The page never scrolls; the sidebar
+  always fits (only its Battlefield list may scroll); content areas scroll inside.
+- **Frost and background** settings are global, stored in localStorage
+  (`kamui.frost.view|strength|focus`, `kamui.background`) and applied by an inline
+  script in `<head>` before first paint. View is capped at 68.
 - **Grades shown**: the judgment under the active rubric, else the newest one from an
   older version (labelled with its rubric version).
 - **Stages**: Aim, Applied, Screening, Interview, Offer, Rejected, Dropped.
@@ -145,13 +165,20 @@ request, five jobs at a time.
     web/app/api/jobs/[id]/check-closed          GET   on-demand closed check
     (Battlefield routes accept an id or a slug)
 
-    web/app/page.tsx            Discovery (server)
-    web/app/JobBoard.tsx        Discovery (client): sort/filter, dismiss, closed check
-    web/app/Toolbar.tsx         Search New (polls the Run) and Rank (with rank-preview confirmation)
+    web/app/layout.tsx          the shell: photograph, tint, glass panel, sidebar; fonts; boot script
+    web/app/globals.css         design tokens (palette, dots, glass, type scale, radii), fluid root size
+    web/app/shell/Sidebar.tsx   sidebar: Battlefields + unranked counts, nav, Frost, background cycler
+    web/app/shell/frost.ts      Frost maths and the before-paint boot script
+    web/app/shell/useShell.ts   Frost and background stores (localStorage)
+    web/app/shell/ui.tsx        buttons, CardLabel, GradeDot, StatCard, time formatting
+    web/app/fonts/              Neutralface, Aspekta (self-hosted via next/font)
+    web/app/page.tsx, Home.tsx  homepage: Welcome, new and applied per Battlefield
+    web/app/battlefields/[slug]/page.tsx     Discovery (server)
+    web/app/battlefields/[slug]/JobBoard.tsx Discovery (client): selected job, cards, list
+    web/app/battlefields/[slug]/Toolbar.tsx  Discovery header: Search New (polls the Run), Rank (preview first)
     web/app/useRunStatus.ts     client hook that polls /api/runs/<id>
     web/app/actions.ts          server actions: setStatus, saveNote, dismissJob
-    web/app/BattlefieldSwitch.tsx       switcher, reads Battlefields from the database
-    web/app/battlefields/actions.ts     create/update Battlefield, toggles, saveRubric, archive
+    web/app/battlefields/actions.ts     create/update Battlefield, toggles, saveRubric, archive, markViewed
     web/app/battlefields/BattlefieldForm.tsx       shared create/edit form
     web/app/battlefields/new/page.tsx              New Battlefield (+ restore archived, ?fromWave=)
     web/app/battlefields/[slug]/settings/page.tsx  Settings (server)
@@ -160,6 +187,8 @@ request, five jobs at a time.
     web/app/explore/Explore.tsx Explore (client): search form, wave progress, promote
     web/app/tracking/page.tsx           Tracking (server)
     web/app/tracking/TrackingBoard.tsx  Tracking (client)
+    web/public/backgrounds/     web-sized background photographs (npm run backgrounds)
+    web/scripts/sync-backgrounds.mjs    resizes <repo>/images into web/public/backgrounds
 
 ## Gotchas learned the hard way
 
@@ -182,6 +211,13 @@ request, five jobs at a time.
 - Without the root `build`/`start` scripts, Railway runs `node index.js` and crashes
   with "Cannot find module '/app/index.js'".
 - After changing the schema, restart `next dev`: it caches the old Prisma client.
+- **Background photographs**: drop the original into `<repo>/images/` (gitignored,
+  originals are 8-20 MB), run `npm run backgrounds` in `web/`, and commit
+  `web/public/backgrounds/`. The sidebar cycles every file there.
+- Neutralface is an all-caps face, so it is only for the wordmark, page headings and
+  Battlefield names; long text such as job titles uses Aspekta.
+- Noto Sans JP has no Japanese preload subset in next/font; it loads with
+  `preload: false` and the browser fetches only the kana glyphs it needs.
 - In some sandboxed shells `next dev` (Turbopack) panics with 0xc0000142 when it
   spawns the PostCSS worker. `npx next dev --webpack` works around it.
 
@@ -217,6 +253,9 @@ to 24h turnaround).
   with a status route; the server-side sweep route and cron; heartbeat recovery for
   saves that die mid-ingest. Details, commits and test evidence for each are in
   `docs/KAMUI-postmortem.docx`.
+- The UI was rebuilt on the KAMUI design system (glass shell, fonts, Frost, cycling
+  backgrounds, homepage, Discovery, Tracking, Explore, settings), scaling to any
+  screen size.
 
 ## Still to build
 

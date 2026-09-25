@@ -22,7 +22,7 @@ import {
 
 const OUT = new URL("../KAMUI-postmortem.docx", import.meta.url);
 const UPDATED = "2026-09-24";
-const LATEST = "the heartbeat fix";
+const LATEST = "the design system rebuild";
 
 // ---------------------------------------------------------------- content
 
@@ -31,6 +31,7 @@ const SYSTEM_NOW = [
   "Prisma 7 owns the schema (prisma/schema.prisma). The generated client lives in web/generated/prisma and needs the @prisma/adapter-pg driver adapter.",
   "Searching runs the Apify actor jharney/career-site-jobs-api from web/lib/apify.ts. Ranking calls claude-haiku-4-5 from web/lib/rank.ts. Both run inside API routes under web/app/api/.",
   "Battlefields are the organising unit: each has its own keywords, excludes, locations, caps, versioned rubric and jobs. Pages select one with ?battlefield=<slug>.",
+  "The UI follows kamui-design-package/DESIGN-SYSTEM.md: glass panel over a photograph, global sidebar with Frost and a background cycler, everything in rem off a fluid root size. / is the homepage; Discovery is /battlefields/<slug>.",
   "Explore (/explore) runs one-off searches that are saved as SearchWaves (jobs with no Battlefield). A wave can be promoted into a Battlefield; promoted jobs are unranked copies.",
   "Every automation is off by default. Search and Rank only run when the user clicks, or when a Battlefield's Auto-Populate / Auto-Rank switch is on.",
   "Searches are asynchronous: the search and explore routes start Apify and return a Run id; GET /api/runs/<id> reports progress and ingests the jobs once Apify finishes. The UI polls it for progress; a Railway cron service calls POST /api/runs/sweep every 5 minutes so results are saved even when nobody is watching.",
@@ -555,6 +556,98 @@ const PHASES = [
       "Applied migration 20260924160000_run_heartbeat (additive). No test data kept.",
     ],
   },
+  {
+    title: "UI rebuild on the KAMUI design system",
+    date: "2026-09-25",
+    commit: "e850750, f9d0c0f, bb6e6f9",
+    summary:
+      "Rebuilt the whole UI to kamui-design-package/DESIGN-SYSTEM.md: a glass panel over a photograph, the global sidebar with Frost controls, self-hosted fonts, a new homepage, and Discovery, Tracking, Explore and settings in the new style. Added user-requested extras: a background cycler over the user's own photographs, and scaling to any screen size (the reference files were fixed at 1440x980 and did not fill a 4K monitor).",
+    changes: [
+      "Shell in web/app/layout.tsx: fixed photograph, tint, glass panel (frost-panel class reading --frost-* variables), the sidebar (web/app/shell/Sidebar.tsx) and main area. An inline head script (shell/frost.ts bootScript) applies stored Frost and background before first paint.",
+      "Design tokens in web/app/globals.css: palette, grade dots, glass fills, the type scale as text-* tokens in rem, radii, widths, panel shadow, hover fill. Fluid root size clamp(15px, min(1.111vw, 1.633vh), 36px).",
+      "Fonts in web/app/fonts via next/font: Neutralface (Regular, Bold OTF), Aspekta 400-700 (WOFF2); Noto Sans JP and IBM Plex Mono from next/font/google.",
+      "Backgrounds: web/scripts/sync-backgrounds.mjs (npm run backgrounds) resizes <repo>/images to 3840 px progressive JPEGs in web/public/backgrounds (53 MB of originals to 5.3 MB). The sidebar's Next button cycles them; the choice persists in localStorage.",
+      "Routes: Discovery moved from / to /battlefields/<slug>; / is the new homepage; /?battlefield=<slug> redirects. BattlefieldSwitch removed (the sidebar replaces it).",
+      "Homepage (app/page.tsx, Home.tsx): kana banner, Welcome, new-jobs subhead, one tile per Battlefield with new and applied and last searched. Migration 20260925120000_battlefield_last_viewed adds Battlefield.lastViewedAt, set by Discovery on open (markViewed).",
+      "Discovery rebuilt (app/battlefields/[slug]/): header with Rank N and Search New; selected-job card with Open posting, Dismiss, stage buttons and note; Score, Grade and Pay stat cards; Why this grade with the key gap and a description toggle; the job list with grade dots, sort and last-seen filter.",
+      "Tracking, Explore, Battlefield settings and New Battlefield restyled per section 9 with the same behaviour.",
+    ],
+    decisions: [
+      [
+        "Background images come from <repo>/images, not the package's background-source.jpg",
+        "User instruction.",
+        "The originals folder is gitignored; only the resized copies are committed.",
+      ],
+      [
+        "Everything sized in rem off a fluid root font size",
+        "The user's 4K monitor showed the fixed-pixel reference tiny. Scaling by min(width/1440, height/980) keeps the designed proportions on any screen.",
+        "The 15px floor keeps the 11px sizes above 10px on small laptops; the 36px cap stops runaway sizes. Native range-slider thumbs do not scale.",
+      ],
+      [
+        "Where the reference HTML and the spec disagree, the spec wins",
+        "The reference uses 10px labels, grey text (#C2CEDA, #F2F6FA) and pastel dots; the spec forbids all three.",
+        "Card labels are 11.5px white at 85% opacity; dots use the spec's traffic-light colours.",
+      ],
+      [
+        "Open posting is the primary (autumn) button, not the reference's white button",
+        "The spec says dark text on a light ground does not occur.",
+        "",
+      ],
+      [
+        "Neutralface only for the wordmark, page headings and Battlefield names",
+        "It is an all-caps face; job titles in it were heavy and hard to scan.",
+        "The selected job's title uses Aspekta at 21px 600.",
+      ],
+      [
+        "Status, notes, dismiss and description kept on Discovery inside the new layout",
+        "Behaviour had to stay intact, and the reference has no detail panel.",
+        "Stage buttons and the note sit in the selected card; the description is behind a toggle in Why this grade.",
+      ],
+      [
+        "Pay card only when the posting states a salary",
+        "The database has no salary column; 5 of 47 raw payloads carry salaryMin/Max/Currency/Interval.",
+        "",
+      ],
+      [
+        "New on the homepage = jobs first seen after Battlefield.lastViewedAt",
+        "The prompt required a real number. Null (never opened) counts every job as new.",
+        "Jobs promoted from Explore keep the wave's firstSeen, so an old wave promoted later may not count as new.",
+      ],
+      [
+        "Errors are shown in white with a red underline",
+        "All text must be white; colour cannot carry the error.",
+        "",
+      ],
+    ],
+    incidents: [
+      [
+        "The first 1366x768 check measured the smallest text at 10.1px.",
+        "The root size floor was 14.7px.",
+        "Raised the floor to 15px (smallest text 10.3px).",
+      ],
+      [
+        "A test lookup for the background Next button also matched the Next.js dev tools button.",
+        "Test-only: getByRole('button', {name: 'Next'}) is a substring match.",
+        "Used an exact match.",
+      ],
+    ],
+    verification: [
+      "tsc, eslint and next build clean.",
+      "Every screen screenshotted at 1366x768, 1440x980, 2560x1440 and 3840x2160: the sidebar fits without scrolling, the page never scrolls, the smallest text is 10.3px or larger, no console errors.",
+      "Persistent-profile browser test: Frost set to 17/88/9 and background 3 of 4 survived closing and reopening the browser and were applied at DOMContentLoaded (no flash); a stored View of 95 was clamped to 68; the rank preview opened and was cancelled; the AI/ML tile went from 34 new to 0 after opening its Discovery.",
+      "Audit (CLAUDE-CODE-PROMPTS Phase 7): no off-scale font sizes, no non-white text beyond the two allowed exceptions, no hex or rgba in components, no text at 10px or below, no grade pills, Frost on every page via the layout.",
+    ],
+    risks: [
+      "Search New, status changes, notes and dismiss were not clicked in the new UI during testing (they change data or cost money); their code paths are unchanged from before.",
+      "Native range-slider thumbs keep the browser's fixed size, so they look small on a 4K screen.",
+      "Below about 1100 px wide the fixed sidebar and stat cards crowd the content; phones and tablets are not designed for.",
+      "Next.js loads Noto Sans JP without preloading, so the kana can briefly show in a fallback face on first load.",
+    ],
+    dataChanges: [
+      "Applied migration 20260925120000_battlefield_last_viewed (additive).",
+      "The browser test opened AI/ML's Discovery, which set its lastViewedAt (its homepage \"new\" count went to 0).",
+    ],
+  },
 ];
 
 // Symptom-first lookup for later debugging.
@@ -574,6 +667,10 @@ const GOTCHAS = [
   ["A search finished on Apify but its jobs never appeared", "Check the sweep cron service's logs on Railway. Until the next sweep, opening the Battlefield or wave page (which polls GET /api/runs/<id>) also ingests it."],
   ["The sweep cron logs sweep 401", "CRON_SECRET differs between the web service and the cron service, or the header lacks the Bearer prefix."],
   ["The web service stops serving and runs every 5 minutes instead", "It picked up a cron config: a railway.json at the repo root, or its config file path set to railway/sweep-cron.json. Only the cron service should use that file."],
+  ["The UI looks tiny or huge on a new screen", "The root font size is clamp(15px, min(1.111vw, 1.633vh), 36px) in web/app/globals.css; every size is in rem, so adjust that one line."],
+  ["Frost or the background resets on every visit", "localStorage is blocked or cleared in that browser. Keys: kamui.frost.view|strength|focus and kamui.background."],
+  ["A new background photo does not appear in the cycler", "Put the original in <repo>/images, run npm run backgrounds in web/, and commit web/public/backgrounds."],
+  ["Homepage new count looks wrong", "New = jobs with firstSeen after Battlefield.lastViewedAt, set when Discovery opens. Promoted Explore jobs keep the wave's firstSeen."],
   ["Port 3000 already in use", "A previous next dev left its node process running. Stop the process listening on 3000."],
 ];
 
