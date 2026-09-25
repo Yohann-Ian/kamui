@@ -1,9 +1,14 @@
 "use client";
 
+// The Discovery header: Battlefield name and stat line, with Rank (secondary)
+// and Search New (primary). Search New starts the search and polls its Run;
+// Rank shows rank-preview and asks before spending anything.
+
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { elapsedSince, isActive, useNow, useRunStatus, type RunStatus } from "./useRunStatus";
+import { elapsedSince, isActive, useNow, useRunStatus, type RunStatus } from "../../useRunStatus";
+import { btnPrimary, btnSecondary } from "../../shell/ui";
 
 type Preview = { unranked: number; alreadyRanked: number; rubricVersion: number };
 
@@ -30,14 +35,20 @@ function searchLine(run: RunStatus, now: number) {
 }
 
 export default function Toolbar({
+  name,
+  stats,
   battlefieldId,
   slug,
   hasRubric,
+  unranked,
   activeSearchRunId,
 }: {
+  name: string;
+  stats: string;
   battlefieldId: string;
   slug: string;
   hasRubric: boolean;
+  unranked: number;
   activeSearchRunId: string | null; // a search still running when the page loaded
 }) {
   const router = useRouter();
@@ -114,8 +125,6 @@ export default function Toolbar({
 
   const locked = searching || busy !== null;
   const toRank = preview ? preview.unranked + (rerank ? preview.alreadyRanked : 0) : 0;
-  const button =
-    "rounded-md border px-3 py-1 text-sm disabled:cursor-not-allowed disabled:opacity-50";
 
   let status: { text: string; error?: boolean } | null = message;
   if (!status && busy === "rank") {
@@ -127,77 +136,70 @@ export default function Toolbar({
   }
 
   return (
-    <div className="mb-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <button
-          onClick={search}
-          disabled={locked}
-          className={`${button} border-gray-900 bg-gray-900 text-white`}
-        >
-          {searching ? "Searching..." : "Search New"}
-        </button>
-        <button
-          onClick={openRank}
-          disabled={locked || !hasRubric}
-          title={hasRubric ? undefined : "This Battlefield has no rubric yet"}
-          className={`${button} border-gray-300 text-gray-700 hover:border-gray-500`}
-        >
-          {busy === "rank" ? "Ranking..." : "Rank"}
-        </button>
-        {!hasRubric ? (
-          <Link
-            href={`/battlefields/${slug}/settings`}
-            className="text-xs text-gray-500 underline"
+    <div className="shrink-0">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <h1 className="truncate font-display text-heading font-bold tracking-[-0.015em]">{name}</h1>
+          <p className="mt-1 text-item font-medium">{stats}</p>
+        </div>
+        <div className="flex shrink-0 gap-2">
+          <button
+            onClick={openRank}
+            disabled={locked || !hasRubric}
+            title={hasRubric ? undefined : "This Battlefield has no rubric yet"}
+            className={btnSecondary}
           >
-            Add a rubric to rank
-          </Link>
-        ) : null}
-        {status ? (
-          <span
-            className={`text-sm ${status.error ? "text-red-700" : "text-gray-700"} ${
-              searching ? "tabular-nums" : ""
-            }`}
-          >
-            {status.text}
-          </span>
-        ) : null}
+            {busy === "rank" ? "Ranking..." : unranked > 0 ? `Rank ${unranked}` : "Rank"}
+          </button>
+          <button onClick={search} disabled={locked} className={btnPrimary}>
+            {searching ? "Searching..." : "Search New"}
+          </button>
+        </div>
       </div>
-      {searching ? (
-        <p className="mt-1 text-xs text-gray-400">
-          The search runs on Apify, so you can leave this page; it picks up again when you come
-          back.
+
+      {status || !hasRubric ? (
+        <p className={`mt-2 text-meta font-medium ${searching ? "tabular-nums" : ""}`}>
+          {status ? (
+            <span className={status.error ? "font-semibold underline decoration-grade-unfit decoration-2 underline-offset-4" : ""}>
+              {status.text}
+            </span>
+          ) : (
+            <>
+              No rubric yet, so nothing can be ranked.{" "}
+              <Link href={`/battlefields/${slug}/settings`} className="underline underline-offset-2">
+                Add one in settings
+              </Link>
+              .
+            </>
+          )}
+          {searching ? " The search runs on Apify, so you can leave this page." : ""}
         </p>
       ) : null}
 
       {preview ? (
-        <div className="mt-3 rounded-lg border border-gray-200 p-4 text-sm">
+        <div className="glass-card mt-3 px-[1.125rem] py-3.5 text-item">
           <p>
             {preview.unranked} {preview.unranked === 1 ? "job is" : "jobs are"} unranked.{" "}
-            {preview.alreadyRanked} already {preview.alreadyRanked === 1 ? "has a grade" : "have grades"}.
+            {preview.alreadyRanked} already{" "}
+            {preview.alreadyRanked === 1 ? "has a grade" : "have grades"}.
           </p>
           {preview.alreadyRanked > 0 ? (
-            <label className="mt-2 flex items-center gap-2 text-gray-600">
+            <label className="mt-2 flex items-center gap-2">
               <input
                 type="checkbox"
                 checked={rerank}
                 onChange={(e) => setRerank(e.target.checked)}
+                className="accent-autumn-deep"
               />
               Also re-rank the {preview.alreadyRanked} using the current rubric (v
               {preview.rubricVersion})
             </label>
           ) : null}
           <div className="mt-3 flex gap-2">
-            <button
-              onClick={rank}
-              disabled={toRank === 0}
-              className={`${button} border-gray-900 bg-gray-900 text-white`}
-            >
+            <button onClick={rank} disabled={toRank === 0} className={btnPrimary}>
               {toRank === 0 ? "Nothing to rank" : `Rank ${toRank}`}
             </button>
-            <button
-              onClick={() => setPreview(null)}
-              className={`${button} border-gray-300 text-gray-700`}
-            >
+            <button onClick={() => setPreview(null)} className={btnSecondary}>
               Cancel
             </button>
           </div>

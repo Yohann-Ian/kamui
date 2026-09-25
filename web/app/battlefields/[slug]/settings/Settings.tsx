@@ -185,7 +185,7 @@ export default function Settings({
   return (
     <main className="mx-auto max-w-3xl px-6 py-10">
       <Link
-        href={`/?battlefield=${battlefield.slug}`}
+        href={`/battlefields/${battlefield.slug}`}
         className="text-sm text-gray-500 hover:text-gray-900"
       >
         &larr; {battlefield.name}

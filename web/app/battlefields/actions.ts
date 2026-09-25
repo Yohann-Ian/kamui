@@ -55,7 +55,7 @@ export async function createBattlefield(_prev: FormState, formData: FormData): P
   const fromWave = String(formData.get("fromWave") ?? "");
   if (fromWave) await copyWaveJobs(fromWave, battlefield.id);
   revalidatePath("/", "layout");
-  redirect(`/?battlefield=${slug}`);
+  redirect(`/battlefields/${slug}`);
 }
 
 export async function updateBattlefield(
@@ -99,5 +99,5 @@ export async function saveRubric(battlefieldId: string, body: string): Promise<F
 export async function setArchived(id: string, archived: boolean) {
   const battlefield = await prisma.battlefield.update({ where: { id }, data: { archived } });
   revalidatePath("/", "layout");
-  redirect(archived ? "/" : `/?battlefield=${battlefield.slug}`);
+  redirect(archived ? "/" : `/battlefields/${battlefield.slug}`);
 }

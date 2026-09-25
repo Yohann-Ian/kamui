@@ -9,13 +9,13 @@ export async function setStatus(jobId: string, status: string) {
     create: { jobId, status },
     update: { status },
   });
-  revalidatePath("/");
+  revalidatePath("/", "layout");
 }
 
 // Removes a job from its Battlefield's view without deleting the row.
 export async function dismissJob(jobId: string) {
   await prisma.job.update({ where: { id: jobId }, data: { dismissed: true } });
-  revalidatePath("/");
+  revalidatePath("/", "layout");
 }
 
 export async function saveNote(jobId: string, stage: string, note: string) {
@@ -24,5 +24,5 @@ export async function saveNote(jobId: string, stage: string, note: string) {
     create: { jobId, stage, note },
     update: { note },
   });
-  revalidatePath("/");
+  revalidatePath("/", "layout");
 }

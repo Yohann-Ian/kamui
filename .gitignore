@@ -20,3 +20,8 @@ __pycache__/
 .devin/
 .windsurf/
 skills-lock.json
+
+# original design assets; the app uses the copies in web/public/backgrounds
+# (npm run backgrounds) and web/app/fonts
+/images/
+/fonts/

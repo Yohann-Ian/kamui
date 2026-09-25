@@ -1,26 +1,143 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/*
+ * KAMUI design tokens. The source of truth is
+ * kamui-design-package/DESIGN-SYSTEM.md; every value here comes from it.
+ *
+ * Sizes are in rem and the root font size is fluid (see html below), so the
+ * whole interface scales with the screen: 1rem = 16px on the 1440x980 frame
+ * the design was drawn on, more on a 4K monitor, never so little on a laptop
+ * that the smallest text (11px in the scale) drops to 10px or below (15px root
+ * floor: 11px text renders at 10.3px).
+ */
+@theme {
+  /* palette (section 3) */
+  --color-autumn-deep: #a96e3c;
+  --color-autumn: #b47c4a;
+  --color-autumn-light: #c08a55;
+  --color-autumn-bright: #d39a63;
+  --color-slate: #6e7486;
+  --color-lavender: #8e7bb0;
+  --color-charcoal: #4c515b;
+  --color-frost: #a0dbf2;
+
+  /* grade dots (section 3) */
+  --color-grade-fit: #22c55e;
+  --color-grade-possible: #2563eb;
+  --color-grade-improbable: #b9a7d6;
+  --color-grade-unfit: #ef4444;
+  --color-grade-none: #8c99a6;
+
+  /* glass surfaces (section 3) */
+  --color-tint: rgba(8, 12, 17, 0.26);
+  --color-sidebar: rgba(0, 0, 0, 0.22);
+  --color-card: rgba(0, 0, 0, 0.26);
+  --color-panel-edge: rgba(255, 255, 255, 0.22);
+  --color-card-edge: rgba(255, 255, 255, 0.16);
+  --color-divider: rgba(255, 255, 255, 0.15);
+  --color-dash: rgba(255, 255, 255, 0.45);
+  --color-secondary: rgba(255, 255, 255, 0.15);
+  --color-secondary-edge: rgba(255, 255, 255, 0.3);
+  --color-row-selected: rgba(255, 255, 255, 0.07);
+  --color-bf-active: rgba(192, 138, 85, 0.22);
+  --color-tile-edge: rgba(255, 255, 255, 0.18);
+
+  /* type scale (section 2): only these sizes */
+  --text-banner: 4.875rem; /* 78 kana banner */
+  --text-welcome: 2.625rem; /* 42 homepage H1 */
+  --text-big: 2.5rem; /* 40 big numbers */
+  --text-heading: 1.4375rem; /* 23 page heading */
+  --text-grade: 1.375rem; /* 22 grade value on the card */
+  --text-title: 1.3125rem; /* 21 selected job title, card headline number */
+  --text-score: 1.125rem; /* 18 list scores */
+  --text-mark: 1.0625rem; /* 17 "KAMUI" under the banner */
+  --text-wordmark: 1rem; /* 16 sidebar wordmark */
+  --text-sub: 0.9375rem; /* 15 homepage subhead, tile names */
+  --text-section: 0.875rem; /* 14 sidebar section headers */
+  --text-item: 0.84375rem; /* 13.5 sidebar items, list titles, body */
+  --text-button: 0.8125rem; /* 13 buttons */
+  --text-meta: 0.78125rem; /* 12.5 secondary metadata, grade words */
+  --text-label: 0.71875rem; /* 11.5 slider labels, small uppercase labels */
+  --text-count: 0.6875rem; /* 11 sidebar counts, small kana */
+
+  /* families (section 8); the variables are set by next/font in layout.tsx */
+  --font-display: var(--font-neutralface), var(--font-aspekta), sans-serif;
+  --font-ui: var(--font-aspekta), system-ui, sans-serif;
+  --font-jp: var(--font-noto-jp), sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
+
+  /* shapes and fixed widths (sections 4 and 5) */
+  --radius-panel: 1.375rem; /* 22 */
+  --radius-tile: 1.125rem; /* 18 */
+  --radius-card: 1rem; /* 16 */
+  --radius-row: 0.625rem; /* 10 */
+  --radius-btn: 0.5625rem; /* 9 */
+  --spacing-frame: 1.625rem; /* 26 screen padding around the panel */
+  --spacing-sidebar: 13.625rem; /* 218 */
+  --spacing-stat: 9.5rem; /* 152 coloured stat card */
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  font-size: clamp(15px, min(1.1111vw, 1.6327vh), 36px);
+  color-scheme: dark;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-ui);
+  color: #ffffff;
+  background: #0b1015;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+/* Frost (section 6): the panel reads these; the inline script in layout.tsx
+   sets them from localStorage before first paint. */
+:root {
+  --frost-view: 0.4;
+  --frost-rgb: 12, 17, 23;
+  --frost-focus: 64px;
+}
+
+.frost-panel {
+  background: rgba(var(--frost-rgb), var(--frost-view));
+  backdrop-filter: blur(var(--frost-focus)) saturate(135%);
+  -webkit-backdrop-filter: blur(var(--frost-focus)) saturate(135%);
+}
+
+/* Cards inside the panel (section 5) */
+.glass-card {
+  background: var(--color-card);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid var(--color-card-edge);
+  border-radius: var(--radius-card);
+}
+
+/* Numbers always align down a column */
+.font-mono {
+  font-variant-numeric: tabular-nums;
+}
+
+input[type="range"] {
+  accent-color: var(--color-frost);
+  height: 3px;
+  cursor: pointer;
+}
+
+/* Form fields on glass */
+.glass-field {
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid var(--color-card-edge);
+  border-radius: var(--radius-btn);
+  color: #ffffff;
+}
+.glass-field:focus {
+  outline: 2px solid var(--color-frost);
+  outline-offset: 1px;
+}
+
+/* Quiet scrollbars inside the panel */
+.panel-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.28) transparent;
 }

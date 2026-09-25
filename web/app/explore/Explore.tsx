@@ -215,7 +215,7 @@ function Promote({ wave, battlefields }: { wave: Wave; battlefields: Battlefield
         <p className={`mt-2 ${result.error ? "text-red-700" : "text-gray-700"}`}>
           {result.text}{" "}
           {result.slug ? (
-            <Link href={`/?battlefield=${result.slug}`} className="underline">
+            <Link href={`/battlefields/${result.slug}`} className="underline">
               Open it
             </Link>
           ) : null}

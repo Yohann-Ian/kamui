@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { setStatus, saveNote } from "../actions";
-import BattlefieldSwitch, { type BattlefieldLink } from "../BattlefieldSwitch";
+type BattlefieldLink = { slug: string; name: string };
 
 const STAGES = ["Aim", "Applied", "Screening", "Interview", "Offer", "Rejected", "Dropped"];
 
@@ -37,11 +37,11 @@ export default function TrackingBoard({
     <main className="mx-auto flex max-w-6xl gap-6 px-6 py-10">
       <section className="min-w-0 flex-1">
         <div className="mb-4 flex items-center justify-between border-b border-gray-200 pb-3">
-          <BattlefieldSwitch battlefields={battlefields} current={current} basePath="/tracking" />
+          <span>{battlefields.find((b) => b.slug === current)?.name}</span>
           <div className="flex items-baseline gap-4">
             <span className="text-sm text-gray-500">{jobs.length} tracked</span>
             <Link
-              href={`/?battlefield=${current}`}
+              href={`/battlefields/${current}`}
               className="text-sm text-gray-500 hover:text-gray-900"
             >
               Discovery

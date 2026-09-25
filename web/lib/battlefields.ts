@@ -42,3 +42,28 @@ export function pickJudgment<J extends GradedJudgment>(
 export function daysSince(date: Date) {
   return Math.floor((Date.now() - date.getTime()) / 86_400_000);
 }
+
+// Sidebar rows: each non-archived Battlefield with its count of unranked jobs,
+// counted the same way as rank-preview (not dismissed or closed, and no
+// judgment under the active rubric; every such job if there is no rubric yet).
+export async function sidebarBattlefields() {
+  const battlefields = await prisma.battlefield.findMany({
+    where: { archived: false },
+    orderBy: { createdAt: "asc" },
+    include: { rubrics: { where: { active: true }, select: { id: true } } },
+  });
+  return Promise.all(
+    battlefields.map(async (b) => ({
+      slug: b.slug,
+      name: b.name,
+      unranked: await prisma.job.count({
+        where: {
+          battlefieldId: b.id,
+          dismissed: false,
+          closed: false,
+          ...(b.rubrics[0] ? { judgments: { none: { rubricId: b.rubrics[0].id } } } : {}),
+        },
+      }),
+    }))
+  );
+}

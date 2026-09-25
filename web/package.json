@@ -9,7 +9,8 @@
     "dev": "next dev",
     "build": "prisma generate --schema ../prisma/schema.prisma && next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "backgrounds": "node scripts/sync-backgrounds.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.128.0",
