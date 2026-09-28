@@ -22,7 +22,7 @@ import {
 
 const OUT = new URL("../KAMUI-postmortem.docx", import.meta.url);
 const UPDATED = "2026-09-24";
-const LATEST = "the Auto-Populate scheduler";
+const LATEST = "the Resumes page";
 
 // ---------------------------------------------------------------- content
 
@@ -707,6 +707,58 @@ const PHASES = [
       "b2b-content: one real search (13 found, 0 new) and lastAutoRunAt set to 2026-09-28 02:21 UTC by the test; autoPopulate restored to off.",
     ],
   },
+  {
+    title: "Resumes page",
+    date: "2026-09-28",
+    commit: "see git log: Resumes page",
+    summary:
+      "A Resumes page in the sidebar: resumes per track, versions A, B, C... with a notes box for what differs, a PDF and a DOCX slot per version with upload, replace, remove and download, and an in-app preview that takes most of the screen.",
+    changes: [
+      "prisma/migrations/20260928140000_resumes: new tables Resume, ResumeVersion, ResumeFile (bytes in Postgres).",
+      "web/app/resumes/: page.tsx (server, never loads file bytes), Resumes.tsx (client), actions.ts (create, rename/retrack, add version, notes, remove file, delete version/resume).",
+      "API routes: upload into a slot (POST /api/resumes/versions/[id]/files), download or inline view (GET /api/resumes/files/[id]), DOCX preview as HTML (GET /api/resumes/files/[id]/preview, via mammoth).",
+      "Sidebar gains Resumes; DESIGN-SYSTEM.md documents the screen and the one allowed light surface (the document preview).",
+    ],
+    decisions: [
+      [
+        "File bytes stored in Postgres",
+        "Railway's filesystem is wiped on redeploy; resumes are small.",
+        "List queries must never select the data column.",
+      ],
+      [
+        "Uploads through a route handler",
+        "Server actions reject bodies over 1 MB; resume PDFs can be larger.",
+        "10 MB cap, and the first bytes must match the slot (%PDF, or a zip for DOCX).",
+      ],
+      [
+        "PDF preview uses the browser's viewer; DOCX preview is converted to HTML",
+        "Browsers cannot display DOCX. mammoth keeps headings, lists, bold, tables and images, not fonts or layout.",
+        "PDF is the default preview when a version has both. The DOCX preview is served with a CSP allowing no scripts and shown in a sandboxed iframe.",
+      ],
+      [
+        "Selection column narrow (20rem), preview takes the rest",
+        "User request: plenty of room for the preview, a neat compact selection.",
+        "About 760 x 750 px of preview at 1440x980.",
+      ],
+      [
+        "Deleting a resume's last version deletes the resume",
+        "A resume with no versions has nothing to show.",
+        "",
+      ],
+    ],
+    incidents: [],
+    verification: [
+      "tsc and eslint clean.",
+      "Browser walkthrough with a generated test resume (DOCX made with the docx library, PDF exported by Word): Resumes opens from the sidebar; creating a resume makes version A; both slots upload; the PDF preview renders in a 762 x 754 px frame and the DOCX preview renders its text; notes save on blur and survive a reload; the downloaded PDF is byte-identical with attachment headers; a PDF in the DOCX slot is refused; + New version makes B; the sidebar still fits at 1366x768; deleting the resume removes everything. No console errors other than the deliberate 400.",
+    ],
+    risks: [
+      "The app has no login. On the public Railway domain anyone who opens /resumes can view and download the resumes, which carry personal details. Add authentication before uploading real resumes there.",
+      "The DOCX preview does not show the real layout; only the PDF preview is exact.",
+    ],
+    dataChanges: [
+      "Applied migration 20260928140000_resumes (new tables). The test resume was deleted; the tables are empty.",
+    ],
+  },
 ];
 
 // Symptom-first lookup for later debugging.
@@ -733,6 +785,8 @@ const GOTCHAS = [
   ["Frost Focus does nothing / no blur on the deployed site, but fine locally", "Check the production CSS for .frost-panel: it must contain an unprefixed backdrop-filter. A hand-written -webkit-backdrop-filter was merged by the minifier into only the prefixed form, which Chrome and Edge ignore (fixed 2026-09-25). Never hand-write -webkit- prefixes."],
   ["Auto-Populate did not search a Battlefield", "Read the auto-populate cron log: each Battlefield is listed as started, skipped (with the reason: running search, searched within 20 hours, claimed by another call) or failed."],
   ["auto-populate cron logs 401", "CRON_SECRET differs between the web and auto-populate services, or AUTO_POPULATE_URL points at the wrong host."],
+  ["A resume upload fails or is refused", "The slot checks the file really is a PDF (starts with %PDF) or a DOCX (a zip); the cap is 10 MB. Uploads go through /api/resumes/versions/<id>/files, not a server action (1 MB body limit)."],
+  ["The DOCX preview looks different from Word", "Expected: it is converted to plain HTML by mammoth, so fonts and layout are not kept. Upload the PDF for an exact preview."],
   ["Port 3000 already in use", "A previous next dev left its node process running. Stop the process listening on 3000."],
 ];
 
@@ -740,6 +794,7 @@ const OPEN_ISSUES = [
   "B2B sourcing is thin: 3 jobs from about 460 sites for the B2B Battlefield, and an Explore search for \"content writer\" found only 2. The actor's index has few content roles.",
   "AI/ML sourcing surfaces mostly Senior and Staff roles, which grade Improbable.",
   "The B2B rubric contradicts itself on senior individual-contributor roles (Fit vs Possible).",
+  "The app has no login: on the public Railway domain anyone can see Battlefields, notes and, now, download resumes.",
   "Manual Rank still runs inside its request; large ranks could time out on Railway.",
   "The Railway sweep cron service has to be created by hand (see CLAUDE.md) and has not been verified on Railway.",
   "The deployed Railway app has not been verified after the deploy fix and the async search change.",

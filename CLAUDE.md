@@ -71,6 +71,11 @@ One Next.js app and one Postgres database, deployed on Railway as four services:
 - **StatusNote** — one note per job per stage, `@@unique([jobId, stage])`.
 - **SearchWave** — one saved Explore search and its jobs, so it can be revisited
   without paying for it again.
+- **Resume / ResumeVersion / ResumeFile** — resumes per track (a Battlefield, or any
+  track when null), their versions A, B, C... with notes on what differs, and one PDF
+  and one DOCX per version (`@@unique([versionId, kind])`). File bytes are stored in
+  Postgres, because Railway's disk does not survive a redeploy. Never select `data`
+  in list queries.
 - **Run** — an audit row for every search and rank, so spend is visible. A search
   Run holds its Apify run ids (`apifyRunIds`, one per location), its Battlefield or
   (for Explore) its `searchWaveId`, and `heartbeatAt`. Status:
@@ -185,6 +190,9 @@ request, five jobs at a time.
     web/app/api/runs/sweep                      POST  save every finished search (Bearer CRON_SECRET)
     web/app/api/battlefields/auto-populate      POST  start the daily Auto-Populate searches (Bearer CRON_SECRET)
     web/app/api/jobs/[id]/check-closed          GET   on-demand closed check
+    web/app/api/resumes/versions/[id]/files     POST  upload a PDF or DOCX into a version's slot (10 MB cap)
+    web/app/api/resumes/files/[id]              GET   download (?inline=1 shows it, for the PDF preview)
+    web/app/api/resumes/files/[id]/preview      GET   DOCX as HTML via mammoth (content, not exact layout)
     (Battlefield routes accept an id or a slug)
 
     web/app/layout.tsx          the shell: photograph, tint, glass panel, sidebar; fonts; boot script
@@ -209,6 +217,8 @@ request, five jobs at a time.
     web/app/explore/Explore.tsx Explore (client): search form, wave progress, promote
     web/app/tracking/page.tsx           Tracking (server)
     web/app/tracking/TrackingBoard.tsx  Tracking (client)
+    web/app/resumes/page.tsx, Resumes.tsx, actions.ts  Resumes: list, versions, notes, slots, preview
+    web/lib/resumes.ts          file kinds, type checks, version labels, download headers
     web/public/backgrounds/     web-sized background photographs (npm run backgrounds)
     web/scripts/sync-backgrounds.mjs    resizes <repo>/images into web/public/backgrounds
 
@@ -243,6 +253,8 @@ request, five jobs at a time.
   `web/public/backgrounds/`. The sidebar cycles every file there.
 - Neutralface is an all-caps face, so it is only for the wordmark, page headings and
   Battlefield names; long text such as job titles uses Aspekta.
+- Resume uploads go through an API route, not a server action: server actions cap
+  request bodies at 1 MB.
 - Noto Sans JP has no Japanese preload subset in next/font; it loads with
   `preload: false` and the browser fetches only the kana glyphs it needs.
 - In some sandboxed shells `next dev` (Turbopack) panics with 0xc0000142 when it

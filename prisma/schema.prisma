@@ -34,6 +34,7 @@ model Battlefield {
   jobs            Job[]
   rubrics         Rubric[]
   runs            Run[]
+  resumes         Resume[]
 }
 
 model Job {
@@ -139,4 +140,42 @@ model Run {
   error         String?
   startedAt     DateTime     @default(now())
   finishedAt    DateTime?
+}
+
+// A resume the user keeps for a track (a Battlefield, or any track when null).
+model Resume {
+  id            String          @id @default(cuid())
+  name          String
+  battlefield   Battlefield?    @relation(fields: [battlefieldId], references: [id], onDelete: SetNull)
+  battlefieldId String?
+  createdAt     DateTime        @default(now())
+  versions      ResumeVersion[]
+}
+
+// Version A, B, C... of a resume, with notes on what makes it different.
+model ResumeVersion {
+  id        String       @id @default(cuid())
+  resume    Resume       @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+  resumeId  String
+  label     String
+  notes     String       @default("")
+  createdAt DateTime     @default(now())
+  files     ResumeFile[]
+
+  @@unique([resumeId, label])
+}
+
+// One uploaded file per version and format ("pdf" or "docx"). The bytes live in
+// the database because Railway's disk does not survive a redeploy.
+model ResumeFile {
+  id         String        @id @default(cuid())
+  version    ResumeVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  versionId  String
+  kind       String
+  fileName   String
+  size       Int
+  data       Bytes
+  uploadedAt DateTime      @default(now())
+
+  @@unique([versionId, kind])
 }

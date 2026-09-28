@@ -155,7 +155,7 @@ The sidebar is on every screen. Its contents, top to bottom:
    the autumn accent.
 4. "+ New Battlefield", a dashed-border action.
 5. A divider.
-6. Explore, Tracking, Battlefield settings. All three identical: 13.5px, 500,
+6. Explore, Tracking, Resumes, Battlefield settings. All identical: 13.5px, 500,
    white. Settings is not a lesser item and is not pushed to the bottom.
 7. A flexible gap.
 8. The Frost section, pinned to the bottom. See section 6.
@@ -342,6 +342,16 @@ building a screen that has no reference:
 
 If a screen seems to need something this document does not cover, add it to this
 document first, then build it.
+
+### Resumes
+
+A narrow selection column (320px) and a preview that takes the rest of the
+content area. The column holds two glass cards: the resumes grouped by track, each
+with its versions as small letter chips (the selected chip in autumn deep), then
+the selected version's name, track, notes and its PDF and DOCX slots. The preview
+is a glass card containing the document itself. The document is the one place
+dark text on a light ground appears: it is the user's file, shown as a page, not
+interface text.
 
 ---
 
