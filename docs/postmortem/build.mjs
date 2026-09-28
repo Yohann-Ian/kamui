@@ -22,7 +22,7 @@ import {
 
 const OUT = new URL("../KAMUI-postmortem.docx", import.meta.url);
 const UPDATED = "2026-09-24";
-const LATEST = "the design system rebuild";
+const LATEST = "the Auto-Populate scheduler";
 
 // ---------------------------------------------------------------- content
 
@@ -649,6 +649,64 @@ const PHASES = [
       "The browser test opened AI/ML's Discovery, which set its lastViewedAt (its homepage \"new\" count went to 0).",
     ],
   },
+  {
+    title: "Auto-Populate scheduler",
+    date: "2026-09-28",
+    commit: "see git log: Auto-Populate scheduler",
+    summary:
+      "The Auto-Populate switch existed but nothing ran it. Added POST /api/battlefields/auto-populate, protected by CRON_SECRET, which starts a search for every non-archived Battlefield with Auto-Populate on, and a daily Railway cron service to call it. It spends money unattended, so every Battlefield passes guards first and is handled in its own try/catch.",
+    changes: [
+      "prisma/migrations/20260928120000_battlefield_last_auto_run: additive. Battlefield gains lastAutoRunAt.",
+      "web/lib/autoPopulate.ts: autoPopulateAll with the guards; returns started / skipped (with reason) / failed per Battlefield.",
+      "web/app/api/battlefields/auto-populate/route.ts: POST, Bearer CRON_SECRET, returns { started, skipped, failed }.",
+      "web/lib/http.ts: isCronRequest, the shared CRON_SECRET check (the sweep route now uses it too).",
+      "scripts/auto-populate.mjs and railway/auto-populate-cron.json: the cron service (0 22 * * * UTC, which is 06:00 UTC+8).",
+      "Homepage tiles show 'Auto-Populate fired ...' (or 'not fired yet') when the switch is on; the Settings text describes the real schedule.",
+    ],
+    decisions: [
+      [
+        "Four guards, in order: no running/ingesting search; no search (manual or automatic) in the last 20 hours; an atomic claim on lastAutoRunAt; then start",
+        "The first two are the spec's. The claim closes the gap where two simultaneous fires both pass the first two checks before either creates a Run.",
+        "The claim only succeeds if lastAutoRunAt is empty or over 20 hours old.",
+      ],
+      [
+        "A failed start gives the claim back",
+        "Nothing fired (a start failure means no Apify run began), so lastAutoRunAt should not claim it did.",
+        "The restore is conditional on lastAutoRunAt still being this call's value.",
+      ],
+      [
+        "Any search in the last 20 hours blocks it, including failed or manual ones",
+        "Cheaper to skip a day than to double-charge; a manual Search New the evening before counts.",
+        "",
+      ],
+      [
+        "The cron calls the web service instead of touching the database",
+        "Same pattern as the sweep: one copy of the search logic.",
+        "Needs AUTO_POPULATE_URL and the same CRON_SECRET.",
+      ],
+    ],
+    incidents: [
+      [
+        "During testing a B2B search took about 20 minutes, longer than the test waited.",
+        "B2B's caps had been raised since earlier tests (13 jobs found).",
+        "Waited for it on its own, then tested the 20-hour guard separately.",
+      ],
+    ],
+    verification: [
+      "tsc and eslint clean.",
+      "401 without or with a wrong secret, 405 for GET; with nothing switched on it returns empty lists; the sweep still authorises with the shared check.",
+      "With Auto-Populate briefly switched on for b2b-content (last search about 23 hours earlier): two calls at the same instant, one through scripts/auto-populate.mjs, started exactly one search (the other: 'another Auto-Populate call claimed it'); a third call while it ran was skipped ('a search is already running'); after it finished (13 found, 0 new) a call was skipped ('searched 0 hours ago, within the last 20 hours'); the homepage tile showed 'Auto-Populate fired'. The switch was then turned back off.",
+      "Test cost: 1 Apify run. The failed-start path (claim given back) and the Railway cron service itself were not exercised.",
+    ],
+    risks: [
+      "The cron fires once a day; if the web service is down at 22:00 UTC that day is skipped (the cron exits 1 and Railway logs it).",
+      "There is no daily spend cap across Battlefields: every Battlefield with Auto-Populate on searches at its own caps.",
+    ],
+    dataChanges: [
+      "Applied migration 20260928120000_battlefield_last_auto_run (additive).",
+      "b2b-content: one real search (13 found, 0 new) and lastAutoRunAt set to 2026-09-28 02:21 UTC by the test; autoPopulate restored to off.",
+    ],
+  },
 ];
 
 // Symptom-first lookup for later debugging.
@@ -673,6 +731,8 @@ const GOTCHAS = [
   ["A new background photo does not appear in the cycler", "Put the original in <repo>/images, run npm run backgrounds in web/, and commit web/public/backgrounds."],
   ["Homepage new count looks wrong", "New = jobs with firstSeen after Battlefield.lastViewedAt, set when Discovery opens. Promoted Explore jobs keep the wave's firstSeen."],
   ["Frost Focus does nothing / no blur on the deployed site, but fine locally", "Check the production CSS for .frost-panel: it must contain an unprefixed backdrop-filter. A hand-written -webkit-backdrop-filter was merged by the minifier into only the prefixed form, which Chrome and Edge ignore (fixed 2026-09-25). Never hand-write -webkit- prefixes."],
+  ["Auto-Populate did not search a Battlefield", "Read the auto-populate cron log: each Battlefield is listed as started, skipped (with the reason: running search, searched within 20 hours, claimed by another call) or failed."],
+  ["auto-populate cron logs 401", "CRON_SECRET differs between the web and auto-populate services, or AUTO_POPULATE_URL points at the wrong host."],
   ["Port 3000 already in use", "A previous next dev left its node process running. Stop the process listening on 3000."],
 ];
 
@@ -680,7 +740,6 @@ const OPEN_ISSUES = [
   "B2B sourcing is thin: 3 jobs from about 460 sites for the B2B Battlefield, and an Explore search for \"content writer\" found only 2. The actor's index has few content roles.",
   "AI/ML sourcing surfaces mostly Senior and Staff roles, which grade Improbable.",
   "The B2B rubric contradicts itself on senior individual-contributor roles (Fit vs Possible).",
-  "Auto-Populate has no scheduler.",
   "Manual Rank still runs inside its request; large ranks could time out on Railway.",
   "The Railway sweep cron service has to be created by hand (see CLAUDE.md) and has not been verified on Railway.",
   "The deployed Railway app has not been verified after the deploy fix and the async search change.",

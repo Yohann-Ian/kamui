@@ -61,6 +61,12 @@ export default async function HomePage({
           : last.status === "running" || last.status === "ingesting"
             ? "Searching now"
             : `Last searched ${timeAgo(last.startedAt)}`,
+        // when the daily Auto-Populate actually fired (only if it is switched on)
+        auto: !b.autoPopulate
+          ? null
+          : b.lastAutoRunAt
+            ? `Auto-Populate fired ${timeAgo(b.lastAutoRunAt)}`
+            : "Auto-Populate on, not fired yet",
       };
     })
   );

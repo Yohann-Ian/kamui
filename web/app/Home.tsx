@@ -12,6 +12,7 @@ type Tile = {
   applied: number;
   colour: string;
   searched: string;
+  auto: string | null;
 };
 
 const WORDS = ["No", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten"];
@@ -70,6 +71,7 @@ export default function Home({ tiles }: { tiles: Tile[] }) {
               </span>
               <span className="mt-[1.375rem] block border-t border-panel-edge pt-3.5 text-meta font-medium">
                 {t.searched}
+                {t.auto ? <span className="mt-1 block">{t.auto}</span> : null}
               </span>
             </Link>
           ))}

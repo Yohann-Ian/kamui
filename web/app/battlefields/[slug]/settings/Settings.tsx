@@ -195,9 +195,10 @@ export default function Settings({ battlefield, rubrics }: { battlefield: Battle
             initial={battlefield.autoPopulate}
             title="Auto-Populate"
           >
-            Re-runs this Battlefield&apos;s search on a schedule. Every run is billed by Apify per job
-            returned, up to {battlefield.maxJobs * locationCount} jobs a run at the current caps. Nothing
-            is scheduled yet: this switch takes effect once the scheduled job is set up.
+            Runs this Battlefield&apos;s search once a day (06:00, UTC+8), skipped if it was searched in
+            the last 20 hours or a search is still running. Every run is billed by Apify per job
+            returned, up to {battlefield.maxJobs * locationCount} jobs a run at the current caps. New
+            jobs are ranked only if Auto-Rank is also on.
           </Switch>
           <Switch battlefieldId={battlefield.id} field="autoRank" initial={battlefield.autoRank} title="Auto-Rank">
             After each search, sends only the new jobs to Claude Haiku for grading. Roughly a third of a

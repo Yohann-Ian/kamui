@@ -28,6 +28,8 @@ model Battlefield {
   // when the user last opened this Battlefield's Discovery; jobs first seen
   // after it are "new" on the homepage
   lastViewedAt    DateTime?
+  // when the scheduled Auto-Populate last started a search for it
+  lastAutoRunAt   DateTime?
   createdAt       DateTime  @default(now())
   jobs            Job[]
   rubrics         Rubric[]

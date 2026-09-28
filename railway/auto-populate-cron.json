@@ -1,0 +1,12 @@
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "build": {
+    "buildCommand": "echo auto-populate cron: nothing to build",
+    "watchPatterns": ["scripts/auto-populate.mjs", "railway/auto-populate-cron.json"]
+  },
+  "deploy": {
+    "startCommand": "node scripts/auto-populate.mjs",
+    "cronSchedule": "0 22 * * *",
+    "restartPolicyType": "NEVER"
+  }
+}

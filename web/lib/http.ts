@@ -1,3 +1,5 @@
+import { timingSafeEqual } from "node:crypto";
+
 // An error that carries the HTTP status an API route should answer with.
 export class HttpError extends Error {
   constructor(
@@ -25,4 +27,14 @@ export async function readJson(request: Request): Promise<Record<string, unknown
   } catch {
     return {};
   }
+}
+
+// Cron-only routes require "Authorization: Bearer <CRON_SECRET>". With
+// CRON_SECRET unset, every call is refused.
+export function isCronRequest(request: Request) {
+  const secret = process.env.CRON_SECRET;
+  if (!secret) return false;
+  const expected = Buffer.from(`Bearer ${secret}`);
+  const given = Buffer.from(request.headers.get("authorization") ?? "");
+  return given.length === expected.length && timingSafeEqual(given, expected);
 }
