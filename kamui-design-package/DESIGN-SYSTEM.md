@@ -160,6 +160,10 @@ The sidebar is on every screen. Its contents, top to bottom:
 7. A flexible gap.
 8. The Frost section, pinned to the bottom. See section 6.
 
+The sidebar must fit the screen. The Battlefield list keeps room for at least two
+rows and scrolls if there are more; Frost starts collapsed so short laptop screens
+give their height to the Battlefields.
+
 ### Discovery content area
 
 - Header: Battlefield name, a stat line beneath it, and two buttons on the right.
@@ -219,8 +223,10 @@ radius 16px.
 
 ## 6. The Frost controls
 
-Three sliders in the sidebar, under a "Frost" header at 14px 600, sentence case,
-with 20px of space beneath it before the first slider.
+Three sliders in the sidebar, under a "Frost" header at 14px 600, sentence case.
+The header is a toggle: Frost is collapsed by default and remembers whether it was
+left open (`kamui.frost.open`). Open, each slider is one row: label on the left,
+the slider, the value on the right. The background cycler sits beneath them.
 
 | Slider | Range | Default | Controls |
 |---|---|---|---|

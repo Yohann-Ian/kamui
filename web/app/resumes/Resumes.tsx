@@ -1,8 +1,9 @@
 "use client";
 
-// Resumes: a compact column on the left (resumes grouped by track with their
-// version chips, then the selected version's files and notes), and the rest of
-// the screen for previewing the selected version.
+// Resumes: Battlefield > resume > version, top to bottom in a compact column,
+// then the selected version's notes and files. The rest of the screen previews
+// the selected version. Everything stays inside the selected Battlefield, and a
+// resume cannot be moved to another Battlefield.
 
 import { useActionState, useState, useTransition } from "react";
 import Link from "next/link";
@@ -15,16 +16,16 @@ import {
   deleteVersion,
   lockAction,
   removeFile,
+  renameResume,
   saveVersionNotes,
-  updateResume,
 } from "./actions";
 import { CardLabel, btnPrimary, btnSecondary, field } from "../shell/ui";
 
 type Kind = "pdf" | "docx";
 type ResumeFile = { id: string; kind: Kind; fileName: string; size: number; uploadedOn: string; stamp: number };
 type Version = { id: string; label: string; notes: string; createdOn: string; files: ResumeFile[] };
-type Resume = { id: string; name: string; battlefieldId: string | null; track: string | null; versions: Version[] };
-type Battlefield = { id: string; name: string };
+type Resume = { id: string; name: string; versions: Version[] };
+type Battlefield = { id: string; slug: string; name: string; count: number };
 
 const KIND_LABEL: Record<Kind, string> = { pdf: "PDF", docx: "DOCX" };
 const ACCEPT: Record<Kind, string> = {
@@ -33,23 +34,26 @@ const ACCEPT: Record<Kind, string> = {
 };
 const errorMark = "font-semibold underline decoration-grade-unfit decoration-2 underline-offset-4";
 const small = "rounded-btn border border-secondary-edge bg-secondary px-2.5 py-1 text-label font-semibold hover:bg-hover";
+const chip = (on: boolean) =>
+  `min-w-8 rounded-btn border px-2 py-1 text-center font-mono text-label font-semibold ${
+    on ? "border-autumn-deep bg-autumn-deep" : "border-secondary-edge bg-secondary hover:bg-hover"
+  }`;
+const row = (on: boolean) =>
+  `flex items-center justify-between gap-2 rounded-row border-l-2 px-2.5 py-1.5 ${
+    on ? "border-autumn-light bg-bf-active" : "border-transparent hover:bg-row-selected"
+  }`;
 
 const size = (n: number) =>
   n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`;
 
-function NewResume({ battlefields, onDone }: { battlefields: Battlefield[]; onDone?: () => void }) {
+function NewResume({ battlefield, onDone }: { battlefield: Battlefield; onDone?: () => void }) {
   const [state, action, pending] = useActionState(createResume, {});
   return (
-    <form action={action} className="mt-2 mb-3 space-y-2 rounded-row bg-row-selected p-2.5">
-      <input name="name" placeholder="Name, e.g. AI Engineer resume" aria-label="Resume name"
+    <form action={action} className="mt-1 mb-1.5 space-y-2 rounded-row bg-row-selected p-2.5">
+      <input type="hidden" name="battlefieldId" value={battlefield.id} />
+      <input name="name" autoFocus placeholder={`Name, e.g. ${battlefield.name} resume`} aria-label="Resume name"
         className={`${field} w-full placeholder:text-white placeholder:opacity-80`} />
-      <select name="battlefieldId" aria-label="Track" className={`${field} w-full`} defaultValue={battlefields[0]?.id ?? ""}>
-        {battlefields.map((b) => (
-          <option key={b.id} value={b.id}>{b.name}</option>
-        ))}
-        <option value="">Any track</option>
-      </select>
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <button type="submit" disabled={pending} className={`${btnPrimary} py-1.5`}>
           {pending ? "Creating..." : "Create"}
         </button>
@@ -129,9 +133,7 @@ function Slot({ versionId, kind, file }: { versionId: string; kind: Kind; file: 
         </span>
       </div>
       <div className="mt-1.5 flex flex-wrap gap-1.5">
-        {file ? (
-          <a href={`/api/resumes/files/${file.id}`} className={small}>Download</a>
-        ) : null}
+        {file ? <a href={`/api/resumes/files/${file.id}`} className={small}>Download</a> : null}
         <label className={`${small} cursor-pointer`}>
           {busy ? "Uploading..." : file ? "Replace" : "Upload"}
           <input type="file" accept={ACCEPT[kind]} className="hidden" disabled={busy}
@@ -150,20 +152,25 @@ function Slot({ versionId, kind, file }: { versionId: string; kind: Kind; file: 
 }
 
 export default function Resumes({
-  resumes,
   battlefields,
+  battlefieldId,
+  resumes,
+  selectedResumeId,
   selectedVersionId,
 }: {
-  resumes: Resume[];
   battlefields: Battlefield[];
+  battlefieldId: string | null;
+  resumes: Resume[];
+  selectedResumeId: string | null;
   selectedVersionId: string | null;
 }) {
-  const [creating, setCreating] = useState(resumes.length === 0);
+  const [creating, setCreating] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
   const [notesState, setNotesState] = useState<"idle" | "saving" | "saved">("idle");
   const [pending, startTransition] = useTransition();
 
-  const resume = resumes.find((r) => r.versions.some((v) => v.id === selectedVersionId)) ?? null;
+  const battlefield = battlefields.find((b) => b.id === battlefieldId) ?? null;
+  const resume = resumes.find((r) => r.id === selectedResumeId) ?? null;
   const version = resume?.versions.find((v) => v.id === selectedVersionId) ?? null;
   const pdf = version?.files.find((f) => f.kind === "pdf");
   const docx = version?.files.find((f) => f.kind === "docx");
@@ -175,16 +182,8 @@ export default function Resumes({
       ? `/api/resumes/files/${shown.id}?inline=1&t=${shown.stamp}#view=FitH`
       : `/api/resumes/files/${shown.id}/preview?t=${shown.stamp}`;
 
-  // group by track, "Any track" last
-  const groups = new Map<string, Resume[]>();
-  for (const r of resumes) {
-    const key = r.track ?? "Any track";
-    groups.set(key, [...(groups.get(key) ?? []), r]);
-  }
-  const ordered = [...groups.entries()].sort(([a], [b]) =>
-    a === "Any track" ? 1 : b === "Any track" ? -1 : 0
-  );
-  const versionCount = resumes.reduce((n, r) => n + r.versions.length, 0);
+  const base = battlefield ? `/resumes?battlefield=${battlefield.slug}` : "/resumes";
+  const total = battlefields.reduce((n, b) => n + b.count, 0);
 
   return (
     <section className="flex h-full min-h-0 flex-col gap-4 px-6 pt-6">
@@ -193,8 +192,8 @@ export default function Resumes({
           <div>
             <h1 className="font-display text-heading font-bold tracking-[-0.015em]">Resumes</h1>
             <p className="mt-1 text-item font-medium">
-              {resumes.length} {resumes.length === 1 ? "resume" : "resumes"}, {versionCount}{" "}
-              {versionCount === 1 ? "version" : "versions"}
+              {total} {total === 1 ? "resume" : "resumes"} across {battlefields.length}{" "}
+              {battlefields.length === 1 ? "Battlefield" : "Battlefields"}
             </p>
           </div>
           <div className="flex shrink-0 gap-2">
@@ -210,81 +209,86 @@ export default function Resumes({
       </div>
 
       <div className="flex min-h-0 flex-1 gap-4 pb-4">
-        {/* the selection: kept narrow so the preview gets the screen */}
+        {/* Battlefield > resume > version, kept narrow so the preview gets the screen */}
         <div className="panel-scroll flex w-[20rem] shrink-0 flex-col gap-3 overflow-y-auto pr-1">
-          <div className="glass-card px-3.5 py-3">
-            <div className="flex items-center justify-between">
-              <CardLabel>All resumes</CardLabel>
-              {!creating ? (
-                <button onClick={() => setCreating(true)} className={small}>+ New</button>
-              ) : null}
-            </div>
-            {creating ? (
-              <NewResume battlefields={battlefields} onDone={resumes.length ? () => setCreating(false) : undefined} />
-            ) : null}
-            {resumes.length === 0 ? (
-              <p className="mt-1 text-meta font-medium">No resumes yet. Create one, then upload its PDF and DOCX.</p>
+          {/* 1. Battlefield */}
+          <div className="glass-card px-3 py-3">
+            <CardLabel className="px-1 pb-1.5">1. Battlefield</CardLabel>
+            {battlefields.length === 0 ? (
+              <p className="px-1 text-meta font-medium">No Battlefields yet. Create one first.</p>
             ) : (
-              ordered.map(([track, list]) => (
-                <div key={track} className="mt-2.5">
-                  <div className="px-1 pb-1 text-label font-semibold opacity-85">{track}</div>
-                  {list.map((r) => (
-                    <div key={r.id}
-                      className={`rounded-row px-2 py-1.5 ${r.id === resume?.id ? "bg-row-selected" : ""}`}>
-                      <div className="truncate text-item font-medium" title={r.name}>{r.name}</div>
-                      <div className="mt-1 flex flex-wrap gap-1">
-                        {r.versions.map((v) => (
-                          <Link key={v.id} href={`/resumes?version=${v.id}`}
-                            className={`min-w-7 rounded-btn border px-1.5 py-0.5 text-center font-mono text-label font-semibold ${
-                              v.id === version?.id
-                                ? "border-autumn-deep bg-autumn-deep"
-                                : "border-secondary-edge bg-secondary hover:bg-hover"
-                            }`}
-                            title={`Version ${v.label}`}>
-                            {v.label}
-                          </Link>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+              battlefields.map((b) => (
+                <Link key={b.id} href={`/resumes?battlefield=${b.slug}`} className={row(b.id === battlefieldId)}>
+                  <span className="truncate text-item font-medium">{b.name}</span>
+                  <span className="shrink-0 font-mono text-count" title="resumes">{b.count}</span>
+                </Link>
               ))
             )}
           </div>
 
-          {resume && version ? (
-            <div className="glass-card px-3.5 py-3">
-              <CardLabel>Selected</CardLabel>
-              <input key={`name-${resume.id}`} defaultValue={resume.name} aria-label="Resume name"
-                onBlur={(e) => e.target.value.trim() !== resume.name &&
-                  startTransition(() => updateResume(resume.id, e.target.value, resume.battlefieldId))}
-                className={`${field} mt-2 w-full font-semibold`} />
-              <select key={`track-${resume.id}`} defaultValue={resume.battlefieldId ?? ""} aria-label="Track"
-                onChange={(e) => startTransition(() => updateResume(resume.id, resume.name, e.target.value || null))}
-                className={`${field} mt-2 w-full`}>
-                {battlefields.map((b) => (
-                  <option key={b.id} value={b.id}>{b.name}</option>
-                ))}
-                <option value="">Any track</option>
-              </select>
+          {/* 2. Resumes in that Battlefield */}
+          {battlefield ? (
+            <div className="glass-card px-3 py-3">
+              <div className="flex items-center justify-between px-1 pb-1.5">
+                <CardLabel>2. Resume</CardLabel>
+                {!creating && resumes.length ? (
+                  <button onClick={() => setCreating(true)} className={small}>+ New resume</button>
+                ) : null}
+              </div>
+              {creating || resumes.length === 0 ? (
+                <NewResume battlefield={battlefield} onDone={resumes.length ? () => setCreating(false) : undefined} />
+              ) : null}
+              {resumes.map((r) => (
+                <Link key={r.id} href={`${base}&resume=${r.id}`} className={row(r.id === resume?.id)}>
+                  <span className="truncate text-item font-medium" title={r.name}>{r.name}</span>
+                  <span className="shrink-0 text-label font-medium opacity-85">
+                    {r.versions.length} {r.versions.length === 1 ? "version" : "versions"}
+                  </span>
+                </Link>
+              ))}
+            </div>
+          ) : null}
 
-              <div className="mt-3 flex items-baseline justify-between">
-                <span className="text-sub font-semibold">
-                  Version <span className="font-mono">{version.label}</span>
-                  <span className="ml-2 text-label font-medium opacity-85">{version.createdOn}</span>
-                </span>
-                <button disabled={pending} onClick={() => startTransition(() => addVersion(resume.id))} className={small}>
-                  + New version
+          {/* 3. Version of that resume, with + New in the same row */}
+          {resume ? (
+            <div className="glass-card px-3.5 py-3">
+              <CardLabel className="pb-1.5">3. Version</CardLabel>
+              <div className="flex flex-wrap gap-1.5">
+                {resume.versions.map((v) => (
+                  <Link key={v.id} href={`${base}&version=${v.id}`} className={chip(v.id === version?.id)}
+                    title={`Version ${v.label}`} aria-current={v.id === version?.id}>
+                    {v.label}
+                  </Link>
+                ))}
+                <button disabled={pending} onClick={() => startTransition(() => addVersion(resume.id))}
+                  className="rounded-btn border border-dashed border-dash px-2 py-1 text-label font-semibold hover:bg-row-selected"
+                  title="Add the next version">
+                  + New
                 </button>
               </div>
+              {!version ? (
+                <p className="mt-2 text-meta font-medium">Pick a version to see and upload its files.</p>
+              ) : null}
+            </div>
+          ) : battlefield && resumes.length ? (
+            <p className="px-1 text-meta font-medium">Pick a resume to see its versions.</p>
+          ) : null}
 
-              <label htmlFor="notes" className="mt-3 flex items-baseline justify-between">
-                <CardLabel>What is different</CardLabel>
+          {/* 4. The selected version: notes and files */}
+          {resume && version ? (
+            <div className="glass-card px-3.5 py-3">
+              <div className="flex items-baseline justify-between gap-2">
+                <CardLabel>Version {version.label}</CardLabel>
+                <span className="text-label font-medium opacity-85">{version.createdOn}</span>
+              </div>
+
+              <label htmlFor="notes" className="mt-2.5 flex items-baseline justify-between">
+                <span className="text-meta font-semibold">What is different</span>
                 <span className="text-label font-medium opacity-85">
                   {notesState === "saving" ? "saving..." : notesState === "saved" ? "saved" : ""}
                 </span>
               </label>
-              <textarea id="notes" defaultValue={version.notes} rows={5}
+              <textarea id="notes" defaultValue={version.notes} rows={4}
                 placeholder="The subtle nuances of this version: what it emphasises, where you sent it..."
                 onChange={() => setNotesState("idle")}
                 onBlur={(e) => {
@@ -294,23 +298,30 @@ export default function Resumes({
                 }}
                 className={`${field} mt-1.5 w-full resize-y leading-[1.5] placeholder:text-white placeholder:opacity-80`} />
 
-              <CardLabel className="mt-3">Files</CardLabel>
-              <ul className="mt-1">
+              <div className="mt-3 text-meta font-semibold">Files</div>
+              <ul className="mt-0.5">
                 <Slot versionId={version.id} kind="pdf" file={pdf} />
                 <Slot versionId={version.id} kind="docx" file={docx} />
               </ul>
 
-              <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 border-t border-divider pt-2.5 text-label font-semibold">
-                <button className="underline underline-offset-2"
-                  onClick={() => confirm(`Delete version ${version.label} and its files?`) &&
-                    startTransition(() => deleteVersion(version.id))}>
-                  Delete version {version.label}
-                </button>
-                <button className="underline underline-offset-2"
-                  onClick={() => confirm(`Delete "${resume.name}" and all ${resume.versions.length} of its versions?`) &&
-                    startTransition(() => deleteResume(resume.id))}>
-                  Delete resume
-                </button>
+              <div className="mt-3 border-t border-divider pt-2.5">
+                <label htmlFor="resume-name" className="text-label font-semibold opacity-85">Resume name</label>
+                <input id="resume-name" key={`name-${resume.id}`} defaultValue={resume.name}
+                  onBlur={(e) => e.target.value.trim() && e.target.value.trim() !== resume.name &&
+                    startTransition(() => renameResume(resume.id, e.target.value))}
+                  className={`${field} mt-1 w-full`} />
+                <div className="mt-2.5 flex flex-wrap gap-x-3 gap-y-1 text-label font-semibold">
+                  <button className="underline underline-offset-2"
+                    onClick={() => confirm(`Delete version ${version.label} and its files?`) &&
+                      startTransition(() => deleteVersion(version.id))}>
+                    Delete version {version.label}
+                  </button>
+                  <button className="underline underline-offset-2"
+                    onClick={() => confirm(`Delete "${resume.name}" and all ${resume.versions.length} of its versions?`) &&
+                      startTransition(() => deleteResume(resume.id))}>
+                    Delete resume
+                  </button>
+                </div>
               </div>
             </div>
           ) : null}
@@ -318,19 +329,16 @@ export default function Resumes({
 
         {/* the preview gets everything else */}
         <div className="glass-card flex min-w-0 flex-1 flex-col p-2.5">
-          {shown && version ? (
+          {shown && version && resume ? (
             <>
               <div className="flex shrink-0 items-center justify-between gap-3 px-1.5 pb-2">
                 <span className="truncate text-meta font-semibold">
-                  {resume?.name} · Version {version.label} · {shown.fileName}
+                  {battlefield?.name} · {resume.name} · Version {version.label} · {shown.fileName}
                 </span>
                 <span className="flex shrink-0 gap-1.5">
                   {pdf && docx ? (
                     (["pdf", "docx"] as Kind[]).map((k) => (
-                      <button key={k} onClick={() => setView(k)} aria-pressed={shown.kind === k}
-                        className={`rounded-btn border px-2.5 py-1 text-label font-semibold ${
-                          shown.kind === k ? "border-autumn-deep bg-autumn-deep" : "border-secondary-edge bg-secondary hover:bg-hover"
-                        }`}>
+                      <button key={k} onClick={() => setView(k)} aria-pressed={shown.kind === k} className={chip(shown.kind === k)}>
                         {KIND_LABEL[k]}
                       </button>
                     ))
@@ -352,9 +360,13 @@ export default function Resumes({
             </>
           ) : (
             <p className="m-auto max-w-sm text-center text-item font-medium">
-              {version
-                ? `Nothing to preview for version ${version.label} yet. Upload its PDF or DOCX on the left.`
-                : "Pick a resume version on the left to preview it here."}
+              {!battlefield
+                ? "Create a Battlefield first; resumes live inside Battlefields."
+                : !resume
+                  ? `Pick a ${battlefield.name} resume on the left.`
+                  : !version
+                    ? `Pick a version of ${resume.name} to preview it.`
+                    : `Nothing to preview for version ${version.label} yet. Upload its PDF or DOCX on the left.`}
             </p>
           )}
         </div>

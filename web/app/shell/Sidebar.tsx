@@ -1,13 +1,15 @@
 "use client";
 
-// The sidebar (DESIGN-SYSTEM.md section 4), on every screen. It always fits the
-// panel's height: only the Battlefield list scrolls, and only if there are too
-// many Battlefields to fit.
+// The sidebar (DESIGN-SYSTEM.md section 4), on every screen. It fits the panel's
+// height: the Battlefield list scrolls if there are many, but always keeps room
+// for two. Frost is collapsible (collapsed by default) and compact when open,
+// so short laptop screens give the space to the Battlefields. Only on unusually
+// short windows with Frost open does the sidebar itself scroll.
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { FROST, type FrostName } from "./frost";
-import { setBackground, setFrost, useBackground, useFrost } from "./useShell";
+import { setBackground, setFrost, setFrostOpen, useBackground, useFrost, useFrostOpen } from "./useShell";
 
 export type SidebarBattlefield = { slug: string; name: string; unranked: number };
 
@@ -35,6 +37,7 @@ export default function Sidebar({
   const context = active ?? battlefields[0]?.slug ?? null;
 
   const frost = useFrost();
+  const frostOpen = useFrostOpen();
   const background = useBackground(backgrounds);
   const bgIndex = background ? backgrounds.indexOf(background) : -1;
 
@@ -56,7 +59,7 @@ export default function Sidebar({
   return (
     <nav
       aria-label="Main"
-      className="flex w-sidebar shrink-0 flex-col border-r border-divider bg-sidebar py-6"
+      className="panel-scroll flex w-sidebar shrink-0 flex-col overflow-y-auto border-r border-divider bg-sidebar py-6"
     >
       <Link href="/" className="flex shrink-0 items-baseline gap-2 px-5 pb-[1.625rem]">
         <span className="font-display text-wordmark font-bold tracking-[0.16em]">KAMUI</span>
@@ -64,7 +67,7 @@ export default function Sidebar({
       </Link>
 
       <div className="shrink-0 px-5 pb-2.5 text-section font-semibold">Battlefields</div>
-      <div className="panel-scroll flex min-h-0 flex-col gap-0.5 overflow-y-auto px-2.5">
+      <div className="panel-scroll flex min-h-[5.25rem] flex-col gap-0.5 overflow-y-auto px-2.5">
         {battlefields.map((b) => (
           <Link
             key={b.slug}
@@ -102,47 +105,56 @@ export default function Sidebar({
         ))}
       </div>
 
-      <div className="min-h-4 grow" />
+      <div className="min-h-3 grow" />
 
-      <div className="shrink-0 px-5 pb-3.5">
-        <div className="pb-5 text-section font-semibold">Frost</div>
-        {(Object.keys(FROST) as FrostName[]).map((name, i) => (
-          <div key={name} className={i ? "pt-[1.375rem]" : ""}>
-            <label
-              htmlFor={`frost-${name}`}
-              className="flex items-baseline justify-between pb-2 text-label font-medium"
-            >
-              <span>{FROST_LABELS[name]}</span>
-              <span className="font-mono text-label text-frost">{frost[name]}</span>
-            </label>
-            <input
-              id={`frost-${name}`}
-              type="range"
-              min={FROST[name].min}
-              max={FROST[name].max}
-              value={frost[name]}
-              onChange={(e) => setFrost(name, Number(e.target.value))}
-              className="w-full"
-            />
-          </div>
-        ))}
+      <div className="shrink-0 px-5 pb-1">
+        <button
+          type="button"
+          onClick={() => setFrostOpen(!frostOpen)}
+          aria-expanded={frostOpen}
+          className="-mx-2 flex w-[calc(100%+1rem)] items-center justify-between rounded-btn px-2 py-1.5 text-section font-semibold hover:bg-row-selected"
+        >
+          <span>Frost</span>
+          <span aria-hidden className="text-count">{frostOpen ? "▾" : "▸"}</span>
+        </button>
+        {frostOpen ? (
+          <div className="pt-1.5 pb-1.5">
+            {(Object.keys(FROST) as FrostName[]).map((name, i) => (
+              <div key={name} className={`flex items-center gap-2 ${i ? "pt-2.5" : ""}`}>
+                <label htmlFor={`frost-${name}`} className="w-[3.75rem] shrink-0 text-label font-medium">
+                  {FROST_LABELS[name]}
+                </label>
+                <input
+                  id={`frost-${name}`}
+                  type="range"
+                  min={FROST[name].min}
+                  max={FROST[name].max}
+                  value={frost[name]}
+                  onChange={(e) => setFrost(name, Number(e.target.value))}
+                  className="min-w-0 flex-1"
+                />
+                <span className="w-6 shrink-0 text-right font-mono text-label text-frost">{frost[name]}</span>
+              </div>
+            ))}
 
-        {backgrounds.length > 1 ? (
-          <div className="flex items-center justify-between pt-[1.375rem] text-label font-medium">
-            <span>
-              Background{" "}
-              <span className="font-mono">
-                {bgIndex + 1}/{backgrounds.length}
-              </span>
-            </span>
-            <button
-              type="button"
-              onClick={() => setBackground(backgrounds[(bgIndex + 1) % backgrounds.length])}
-              className="rounded-btn border border-secondary-edge bg-secondary px-2.5 py-1 text-label font-semibold hover:bg-hover"
-              title="Next background photograph"
-            >
-              Next
-            </button>
+            {backgrounds.length > 1 ? (
+              <div className="flex items-center justify-between pt-2.5 text-label font-medium">
+                <span>
+                  Background{" "}
+                  <span className="font-mono">
+                    {bgIndex + 1}/{backgrounds.length}
+                  </span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setBackground(backgrounds[(bgIndex + 1) % backgrounds.length])}
+                  className="rounded-btn border border-secondary-edge bg-secondary px-2.5 py-1 text-label font-semibold hover:bg-hover"
+                  title="Next background photograph"
+                >
+                  Next
+                </button>
+              </div>
+            ) : null}
           </div>
         ) : null}
       </div>

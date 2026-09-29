@@ -22,7 +22,7 @@ import {
 
 const OUT = new URL("../KAMUI-postmortem.docx", import.meta.url);
 const UPDATED = "2026-09-24";
-const LATEST = "the Resumes password lock";
+const LATEST = "the Battlefield-first Resumes page";
 
 // ---------------------------------------------------------------- content
 
@@ -824,6 +824,52 @@ const PHASES = [
       "Applied migration 20260929120000_app_settings (new table). AppSetting holds resumes.signingKey; no password hash is stored (the default applies).",
     ],
   },
+  {
+    title: "Short-screen sidebar and the Battlefield-first Resumes page",
+    date: "2026-09-29",
+    commit: "see git log: Battlefield-first Resumes, collapsible Frost",
+    summary:
+      "On the user's 13-inch screen the sidebar's Battlefield list was squeezed to nothing. Frost is now collapsible (collapsed by default) and compact when open, and the list always keeps room for two Battlefields. The Resumes page was rebuilt around the user's hierarchy: Battlefield, then resume, then version (with + New in the version row), then files and notes; resumes cannot be moved between Battlefields.",
+    changes: [
+      "Sidebar: Frost header is a toggle (kamui.frost.open, collapsed by default); sliders are single rows; the Battlefield list has a minimum height of two rows; the sidebar itself scrolls only as a last resort on very short windows with Frost open.",
+      "Resumes page: 1. Battlefield list, 2. that Battlefield's resumes (+ New resume creates it there), 3. the resume's version chips with + New, 4. the selected version's notes, files, rename and delete. The preview names Battlefield, resume and version. URL ?battlefield=&resume=&version=; a version from another Battlefield is ignored.",
+      "Actions: createResume requires the selected Battlefield; updateResume (which could change the Battlefield) replaced by renameResume; every redirect keeps the Battlefield.",
+      "DESIGN-SYSTEM.md sections 4 and 6 updated for the collapsible Frost and the sidebar fitting rule.",
+    ],
+    decisions: [
+      [
+        "Frost collapses rather than only shrinking",
+        "Frost is adjusted rarely; collapsed it costs one row, which is what short screens need.",
+        "Open, it still fits at 1280x680; below that the sidebar scrolls instead of clipping.",
+      ],
+      [
+        "Moving a resume to another Battlefield removed from the UI and the server",
+        "User rule: the Battlefield is superordinate and reassigning is forbidden for now.",
+        "Existing resumes kept their Battlefields; nothing was moved or deleted.",
+      ],
+      [
+        "Selecting a resume does not pick a version",
+        "User rule: files appear only after choosing Battlefield and version.",
+        "The preview says which step is next.",
+      ],
+    ],
+    incidents: [
+      [
+        "Battlefield list invisible on a 13-inch screen (reported by the user).",
+        "The list was the only part of the sidebar allowed to shrink, and Frost took about 270px.",
+        "Collapsible, compact Frost and a two-row minimum for the list.",
+      ],
+    ],
+    verification: [
+      "tsc and eslint clean.",
+      "Sidebar at 1440x980, 1280x680 and 1152x620: both Battlefields fully visible with Frost closed and open; the sidebar fits except 1152x620 with Frost open (25px over, scrolls).",
+      "Resumes, read-only against the user's real data at 1280x680: unlock, pick AI/ML Engineer, pick AI-ML Resume (versions A, B, C shown, no preview until a version is picked), pick C: notes and files show and the PDF preview frame fills the space; the same version id under B2B Content is ignored.",
+    ],
+    risks: [
+      "'B2B Content Resume' sits in the AI/ML Engineer Battlefield; with reassignment removed it can only be moved in the database or recreated.",
+    ],
+    dataChanges: ["None."],
+  },
 ];
 
 // Symptom-first lookup for later debugging.
@@ -855,6 +901,7 @@ const GOTCHAS = [
   ["Forgot the Resumes password", "Delete the AppSetting row with key resumes.passwordHash; the default password in web/lib/resumeLock.ts applies again."],
   ["Resumes shows the lock screen on every visit", "The kamui_resumes cookie is missing or no longer valid: the password was changed on another device, it expired (30 days), or cookies are blocked. On http://localhost the cookie is not Secure; on Railway it is."],
   ["Too many wrong attempts on Resumes", "10 failures per address per 15 minutes, counted in memory: wait, or redeploy/restart the web service to clear it."],
+  ["The sidebar's Battlefield list is cut short", "Frost is probably open on a short screen: collapse it (its header is a toggle). The list always keeps room for two rows and scrolls beyond that."],
   ["Port 3000 already in use", "A previous next dev left its node process running. Stop the process listening on 3000."],
 ];
 

@@ -71,8 +71,11 @@ One Next.js app and one Postgres database, deployed on Railway as four services:
 - **StatusNote** — one note per job per stage, `@@unique([jobId, stage])`.
 - **SearchWave** — one saved Explore search and its jobs, so it can be revisited
   without paying for it again.
-- **Resume / ResumeVersion / ResumeFile** — resumes per track (a Battlefield, or any
-  track when null), their versions A, B, C... with notes on what differs, and one PDF
+- **Resume / ResumeVersion / ResumeFile** — resumes inside a Battlefield (the
+  Battlefield is the top of the hierarchy: the Resumes page is Battlefield > resume >
+  version, scoped by `?battlefield=<slug>`, and a resume can never be moved to another
+  Battlefield; `battlefieldId` is only nullable so a deleted Battlefield does not
+  delete resumes), their versions A, B, C... with notes on what differs, and one PDF
   and one DOCX per version (`@@unique([versionId, kind])`). File bytes are stored in
   Postgres, because Railway's disk does not survive a redeploy. Never select `data`
   in list queries.
@@ -109,7 +112,9 @@ One Next.js app and one Postgres database, deployed on Railway as four services:
   always fits (only its Battlefield list may scroll); content areas scroll inside.
 - **Frost and background** settings are global, stored in localStorage
   (`kamui.frost.view|strength|focus`, `kamui.background`) and applied by an inline
-  script in `<head>` before first paint. View is capped at 68.
+  script in `<head>` before first paint. View is capped at 68. The Frost section is
+  collapsible, collapsed by default (`kamui.frost.open`), so short laptop screens
+  keep the Battlefield list visible; the list always keeps room for two rows.
 - **Grades shown**: the judgment under the active rubric, else the newest one from an
   older version (labelled with its rubric version).
 - **Stages**: Aim, Applied, Screening, Interview, Offer, Rejected, Dropped.

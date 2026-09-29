@@ -73,3 +73,16 @@ export function setBackground(file: string) {
   document.documentElement.style.setProperty("--bg-image", backgroundVar(file));
   notify();
 }
+
+// Whether the sidebar's Frost section is expanded. Collapsed by default, so the
+// Battlefield list gets the sidebar's height on short screens.
+const FROST_OPEN_KEY = "kamui.frost.open";
+
+export function useFrostOpen() {
+  return useSyncExternalStore(subscribe, () => read(FROST_OPEN_KEY) === "1", () => false);
+}
+
+export function setFrostOpen(open: boolean) {
+  write(FROST_OPEN_KEY, open ? "1" : "0");
+  notify();
+}
