@@ -179,11 +179,15 @@ export default function Settings({ battlefield, rubrics }: { battlefield: Battle
 
       <div className="mt-5 flex max-w-[60rem] flex-col gap-4">
         <div className="glass-card px-5 py-[1.125rem]">
-          <CardLabel className="pb-4">Search</CardLabel>
+          <CardLabel>Default settings</CardLabel>
+          <p className="mt-1.5 pb-4 text-meta leading-[1.45] font-medium">
+            What Auto-Populate searches for, and what the search bar on this Battlefield starts
+            with. Terms and locations can be changed there for a single search.
+          </p>
           <BattlefieldForm
             action={updateBattlefield.bind(null, battlefield.id)}
             defaults={battlefield}
-            submitLabel="Save search settings"
+            submitLabel="Save default settings"
           />
         </div>
 

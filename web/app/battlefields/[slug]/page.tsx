@@ -3,6 +3,7 @@ import { prisma } from "../../../lib/prisma";
 import { daysSince, pickJudgment } from "../../../lib/battlefields";
 import { APPLIED_STAGES } from "../../../lib/jobs";
 import { ACTIVE } from "../../../lib/searchRuns";
+import { jobCountry } from "../../../lib/locations";
 import JobBoard from "./JobBoard";
 
 export const dynamic = "force-dynamic";
@@ -62,6 +63,13 @@ export default async function Discovery({ params }: { params: Promise<{ slug: st
     (j) => !j.closed && !j.judgments.some((jm) => !rubric || jm.rubricId === rubric.id)
   ).length;
 
+  // Stats counts every job still in the Battlefield, applied ones included
+  const stats = jobs.map((job) => ({
+    country: jobCountry(job.location, job.raw),
+    grade: pickJudgment(job.judgments, rubric?.id)?.grade ?? null,
+    applied: applied(job),
+  }));
+
   const data = jobs
     .filter((job) => !applied(job))
     .map((job) => {
@@ -72,6 +80,7 @@ export default async function Discovery({ params }: { params: Promise<{ slug: st
         title: job.title,
         company: job.company,
         location: job.location,
+        country: jobCountry(job.location, raw),
         url: job.url,
         description: job.description,
         grade: judgment?.grade ?? null,
@@ -93,6 +102,7 @@ export default async function Discovery({ params }: { params: Promise<{ slug: st
   return (
     <JobBoard
       jobs={data}
+      stats={stats}
       hiddenCount={hiddenCount}
       unranked={unranked}
       activeSearchRunId={activeSearch?.id ?? null}
@@ -102,6 +112,7 @@ export default async function Discovery({ params }: { params: Promise<{ slug: st
         name: battlefield.name,
         titleIncludes: battlefield.titleIncludes,
         locations: battlefield.locations,
+        customLocations: battlefield.customLocations,
         archived: battlefield.archived,
         rubricVersion: rubric?.version ?? null,
       }}

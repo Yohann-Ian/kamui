@@ -1,9 +1,10 @@
 "use client";
 
-// Discovery: the header, then two sides. On the left, All jobs: Search New and
-// Rank, then the list at full height. On the right, the selected job: its card
-// (with small Score, Grade and Pay tiles, actions, status and note) beside a
-// tall card holding "Why this grade" and the full description.
+// Discovery: the header, then three columns. On the left, the search bar,
+// Search New and Rank, then All jobs at full height. In the middle, the
+// selected job's card (small Score, Grade and Pay tiles, actions, status and
+// note) on top and Stats below, half each. On the right, a tall card holding
+// "Why this grade" and the full description.
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -11,6 +12,8 @@ import { setStatus, saveNote, dismissJob } from "../../actions";
 import { markViewed } from "../actions";
 import { CardLabel, GradeDot, btnPrimary, btnSecondary, daysAgo, field, ordinal } from "../../shell/ui";
 import Toolbar from "./Toolbar";
+import Stats, { type StatRow } from "./Stats";
+import { countryLabel } from "../../../lib/locations";
 
 const STAGES = ["Aim", "Applied", "Screening", "Interview", "Offer", "Rejected", "Dropped"];
 
@@ -28,6 +31,7 @@ type Job = {
   title: string;
   company: string;
   location: string | null;
+  country: string;
   url: string;
   description: string | null;
   grade: string | null;
@@ -49,6 +53,7 @@ type Battlefield = {
   name: string;
   titleIncludes: string[];
   locations: string[];
+  customLocations: string[];
   archived: boolean;
   rubricVersion: number | null;
 };
@@ -91,12 +96,14 @@ function payNote({ currency, interval }: Pay) {
 
 export default function JobBoard({
   jobs,
+  stats: statRows,
   hiddenCount,
   unranked,
   activeSearchRunId,
   battlefield,
 }: {
   jobs: Job[];
+  stats: StatRow[];
   hiddenCount: number;
   unranked: number;
   activeSearchRunId: string | null;
@@ -105,9 +112,16 @@ export default function JobBoard({
   const router = useRouter();
   const [sort, setSort] = useState<"score" | "lastSeen">("score");
   const [seenWithin, setSeenWithin] = useState(0); // days, 0 = any time
+  const [country, setCountry] = useState("all");
+
+  // Countries in the list, most jobs first
+  const countryCounts = new Map<string, number>();
+  for (const j of jobs) countryCounts.set(j.country, (countryCounts.get(j.country) ?? 0) + 1);
+  const countries = [...countryCounts].sort((a, b) => b[1] - a[1]).map(([c]) => c);
 
   const shown = jobs
     .filter((j) => seenWithin === 0 || j.lastSeenDays <= seenWithin)
+    .filter((j) => country === "all" || j.country === country)
     .sort((a, b) =>
       sort === "lastSeen"
         ? a.lastSeenDays - b.lastSeenDays
@@ -160,26 +174,27 @@ export default function JobBoard({
             than 0.7, because each card's padding also counts toward its width). */}
         {/* All jobs: controls, then the list at full height */}
         <div className="flex min-w-0 shrink-0 grow-[0.34] basis-[25rem] flex-col">
-          <CardLabel className="px-1">All jobs</CardLabel>
-          <div className="mt-3.5 px-1">
+          <div className="px-1">
             <Toolbar
               battlefieldId={battlefield.id}
               slug={battlefield.slug}
               hasRubric={battlefield.rubricVersion !== null}
               unranked={unranked}
               activeSearchRunId={activeSearchRunId}
+              defaultTerms={battlefield.titleIncludes}
+              customLocations={battlefield.customLocations}
             />
           </div>
+          <CardLabel className="mt-5 px-1">All jobs</CardLabel>
 
           {noJobsYet ? (
-            <p className="mt-5 px-1 text-item leading-[1.55] font-medium">
-              No jobs in {battlefield.name} yet. Click Search New to run its first search for{" "}
-              {battlefield.titleIncludes.map((t) => `"${t}"`).join(", ")}
-              {battlefield.locations.length ? ` in ${battlefield.locations.join(", ")}` : ""}.
+            <p className="mt-2 px-1 text-item leading-[1.55] font-medium">
+              No jobs in {battlefield.name} yet. Set the terms and locations above, then click Search New
+              to run its first search.
             </p>
           ) : (
             <>
-              <div className="mt-5 flex shrink-0 items-center gap-3 px-1 pb-2 text-meta font-medium">
+              <div className="mt-2 flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1.5 px-1 pb-2 text-meta font-medium">
                 <label className="flex items-center gap-1.5">
                   sorted by
                   <select
@@ -201,6 +216,21 @@ export default function JobBoard({
                     <option value={0}>any time</option>
                     <option value={7}>last 7 days</option>
                     <option value={30}>last 30 days</option>
+                  </select>
+                </label>
+                <label className="flex items-center gap-1.5">
+                  in
+                  <select
+                    value={country}
+                    onChange={(e) => setCountry(e.target.value)}
+                    className="glass-field px-1.5 py-0.5 text-meta"
+                  >
+                    <option value="all">All Locations</option>
+                    {countries.map((c) => (
+                      <option key={c} value={c}>
+                        {countryLabel(c)} ({countryCounts.get(c)})
+                      </option>
+                    ))}
                   </select>
                 </label>
               </div>
@@ -250,10 +280,10 @@ export default function JobBoard({
           )}
         </div>
 
-        {/* The selected job: its card, and a tall card to read it in */}
-        {selected ? (
-          <>
-            <div className="glass-card panel-scroll flex min-h-0 min-w-0 mb-4 grow basis-0 flex-col overflow-y-auto px-5 py-[1.125rem]">
+        {/* The middle column: the selected job's card on top, Stats below, half each */}
+        <div className="mb-4 flex min-h-0 min-w-0 grow basis-0 flex-col gap-4">
+          {selected ? (
+            <div className="glass-card panel-scroll flex min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-y-auto px-5 py-[1.125rem]">
               <CardLabel>Selected</CardLabel>
               <h2 className="mt-2 text-title leading-tight font-semibold">
                 <span className={selected.closed ? "mr-2 line-through" : ""}>{selected.title}</span>
@@ -337,17 +367,29 @@ export default function JobBoard({
                 />
               ) : null}
             </div>
-
-            <div className="glass-card flex min-h-0 min-w-0 mb-4 grow-[0.66] basis-0 flex-col px-5 py-[1.125rem]">
-              <CardLabel>Why this grade</CardLabel>
-              <p className="mt-2 text-item leading-[1.55]">
-                {selected.reason ?? "Not ranked yet. Rank this Battlefield to grade it."}
+          ) : (
+            <div className="glass-card flex min-h-0 min-w-0 flex-1 basis-0 flex-col px-5 py-[1.125rem]">
+              <CardLabel>Selected</CardLabel>
+              <p className="mt-2 text-item leading-[1.55] font-medium">
+                {noJobsYet ? "Nothing to select yet." : "Pick a job from the list to see it here."}
               </p>
-              {selected.keyGap ? (
-                <p className="mt-2 text-item leading-[1.55]">
-                  <span className="font-semibold">Biggest gap:</span> {selected.keyGap}
-                </p>
-              ) : null}
+            </div>
+          )}
+          <Stats rows={statRows} />
+        </div>
+
+        {/* Why this grade: a tall card to read the selected job in */}
+        {selected ? (
+          <div className="glass-card flex min-h-0 min-w-0 mb-4 grow-[0.66] basis-0 flex-col px-5 py-[1.125rem]">
+            <CardLabel>Why this grade</CardLabel>
+            <p className="mt-2 text-item leading-[1.55]">
+              {selected.reason ?? "Not ranked yet. Rank this Battlefield to grade it."}
+            </p>
+            {selected.keyGap ? (
+              <p className="mt-2 text-item leading-[1.55]">
+                <span className="font-semibold">Biggest gap:</span> {selected.keyGap}
+              </p>
+            ) : null}
               <div className="mt-4 border-t border-divider pt-4">
                 <CardLabel>Description</CardLabel>
               </div>
@@ -355,7 +397,6 @@ export default function JobBoard({
                 {selected.description ?? "No description."}
               </p>
             </div>
-          </>
         ) : null}
       </div>
     </section>

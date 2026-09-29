@@ -19,6 +19,8 @@ model Battlefield {
   titleIncludes   String[]
   titleExcludes   String[]
   locations       String[]
+  // extra location chips added with "+ New Location" on the Battlefield's search bar
+  customLocations String[]  @default([])
   maxBoards       Int       @default(2000)
   maxJobs         Int       @default(200)
   maxJobsPerBoard Int       @default(25)

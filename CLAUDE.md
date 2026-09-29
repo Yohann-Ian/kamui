@@ -52,7 +52,8 @@ One Next.js app and one Postgres database, deployed on Railway as four services:
 - **Battlefield** — keywords (`titleIncludes`), `titleExcludes`, `locations`, caps
   (`maxBoards`, `maxJobs`, `maxJobsPerBoard`), and the `autoPopulate` / `autoRank`
   switches, both off by default. `archived` hides it from the sidebar.
-  `lastViewedAt` is set when its Discovery opens; the homepage counts jobs first
+  `customLocations` are the extra chips added with "+ New Location" on its search
+  bar. `lastViewedAt` is set when its Discovery opens; the homepage counts jobs first
   seen after it as "new". `lastAutoRunAt` is when Auto-Populate last started a search
   for it (shown on its homepage tile).
 - **Job** — one row per posting per Battlefield. `atsJobId` is the ATS job id; dedup
@@ -148,7 +149,11 @@ No request ever waits for Apify (Railway times long requests out).
 1. `POST /api/battlefields/<id>/search` or `POST /api/explore` creates a Run (and,
    for Explore, the SearchWave), starts one Apify run per location with
    apify-client's `start()`, stores the run ids and returns 202 with the Run id. A
-   second Search New while one is running returns the running Run.
+   second Search New while one is running returns the running Run. The
+   Battlefield route takes an optional body `{ terms, locations }` from the search
+   bar (`lib/locations.ts`: "all" is one run with no location, "remote" is a
+   remote-only run, anything else is a location string); what it leaves out comes
+   from the Battlefield's default settings, which is all Auto-Populate uses.
 2. `GET /api/runs/<id>` reports Apify's progress messages. Once every Apify run has
    finished, the first caller claims the Run (running -> ingesting, stamping
    `heartbeatAt`), saves the jobs and marks it done or failed. Only one caller can
@@ -192,6 +197,7 @@ request, five jobs at a time.
     web/lib/apify.ts            apify-client: start runs, check runs, read datasets
     web/lib/searchRuns.ts       start search / explore, checkRun, ingest + heartbeat, sweep
     web/lib/autoPopulate.ts     the daily Auto-Populate run and its guards
+    web/lib/locations.ts        search-bar location chips -> Apify runs, job country, chart colours
     web/lib/jobs.ts             maps actor items to Job rows, per-Battlefield dedup
     web/lib/rank.ts             the judge: grades jobs against the active rubric
     web/lib/battlefields.ts     slugs, resolveBattlefield (?battlefield=), pickJudgment
@@ -220,11 +226,12 @@ request, five jobs at a time.
     web/app/fonts/              Neutralface, Aspekta (self-hosted via next/font)
     web/app/page.tsx, Home.tsx  homepage: Welcome, new and applied per Battlefield
     web/app/battlefields/[slug]/page.tsx     Discovery (server)
-    web/app/battlefields/[slug]/JobBoard.tsx Discovery (client): selected job, cards, list
-    web/app/battlefields/[slug]/Toolbar.tsx  Discovery header: Search New (polls the Run), Rank (preview first)
+    web/app/battlefields/[slug]/JobBoard.tsx Discovery (client): list + country filter, selected job, Stats, why
+    web/app/battlefields/[slug]/Toolbar.tsx  search bar (terms, locations), Search New (polls the Run), Rank (preview first)
+    web/app/battlefields/[slug]/Stats.tsx    Stats card: glowing donut by country or by grade, found / applied
     web/app/useRunStatus.ts     client hook that polls /api/runs/<id>
     web/app/actions.ts          server actions: setStatus, saveNote, dismissJob
-    web/app/battlefields/actions.ts     create/update Battlefield, toggles, saveRubric, archive, markViewed
+    web/app/battlefields/actions.ts     create/update Battlefield, toggles, saveRubric, archive, markViewed, custom locations
     web/app/battlefields/BattlefieldForm.tsx       shared create/edit form
     web/app/battlefields/new/page.tsx              New Battlefield (+ restore archived, ?fromWave=)
     web/app/battlefields/[slug]/settings/page.tsx  Settings (server)
@@ -313,6 +320,10 @@ to 24h turnaround).
 - The UI was rebuilt on the KAMUI design system (glass shell, fonts, Frost, cycling
   backgrounds, homepage, Discovery, Tracking, Explore, settings), scaling to any
   screen size.
+- Discovery gained a search bar (terms and location chips per search), a country
+  filter on the list, and a Stats card (donut by country or by grade, with found
+  and applied counts) under the Selected card. Battlefield settings' search card
+  is now "Default settings".
 
 ## Still to build
 

@@ -1,15 +1,17 @@
 "use client";
 
-// Search New (primary) and Rank (secondary), under the All jobs label, with
-// the search progress line and the rank confirmation beneath them. Search New
-// starts the search and polls its Run; Rank shows rank-preview and asks before
-// spending anything.
+// The search bar (terms to include and location chips), then Search New
+// (primary) and Rank (secondary), with the search progress line and the rank
+// confirmation beneath them. Search New starts a search for what the bar says
+// and polls its Run; Rank shows rank-preview and asks before spending anything.
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { elapsedSince, isActive, useNow, useRunStatus, type RunStatus } from "../../useRunStatus";
-import { btnPrimary, btnSecondary } from "../../shell/ui";
+import { CardLabel, btnPrimary, btnSecondary } from "../../shell/ui";
+import { PRESET_LOCATIONS } from "../../../lib/locations";
+import { addCustomLocation, removeCustomLocation } from "../actions";
 
 type Preview = { unranked: number; alreadyRanked: number; rubricVersion: number };
 
@@ -41,12 +43,16 @@ export default function Toolbar({
   hasRubric,
   unranked,
   activeSearchRunId,
+  defaultTerms,
+  customLocations,
 }: {
   battlefieldId: string;
   slug: string;
   hasRubric: boolean;
   unranked: number;
   activeSearchRunId: string | null; // a search still running when the page loaded
+  defaultTerms: string[]; // the Battlefield's default settings
+  customLocations: string[]; // chips added with "+ New Location"
 }) {
   const router = useRouter();
   const [searchRunId, setSearchRunId] = useState(activeSearchRunId);
@@ -56,6 +62,8 @@ export default function Toolbar({
   const [message, setMessage] = useState<{ text: string; error?: boolean } | null>(null);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [rerank, setRerank] = useState(false);
+  const [terms, setTerms] = useState(defaultTerms.join(", "));
+  const [picked, setPicked] = useState<string[]>(["all"]);
 
   const run = useRunStatus(searchRunId);
   const searching = starting || (!!searchRunId && (run === null || isActive(run)));
@@ -75,7 +83,14 @@ export default function Toolbar({
     setMessage(null);
     setStarting(true);
     try {
-      const r = await call(`/api/battlefields/${battlefieldId}/search`, { method: "POST" });
+      const r = await call(`/api/battlefields/${battlefieldId}/search`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          terms: terms.split(",").map((t) => t.trim()).filter(Boolean),
+          locations: picked,
+        }),
+      });
       setSearchRunId(r.runId);
     } catch (e) {
       setMessage({ text: `Search failed to start: ${errorText(e)}`, error: true });
@@ -134,7 +149,18 @@ export default function Toolbar({
 
   return (
     <div className="shrink-0">
-      <div className="flex flex-wrap gap-2.5">
+      <SearchBar
+        battlefieldId={battlefieldId}
+        terms={terms}
+        onTerms={setTerms}
+        defaultTerms={defaultTerms}
+        picked={picked}
+        onPicked={setPicked}
+        customLocations={customLocations}
+        disabled={locked}
+      />
+
+      <div className="mt-3.5 flex flex-wrap gap-2.5">
         <button onClick={search} disabled={locked} className={btnPrimary}>
           {searching ? "Searching..." : "Search New"}
         </button>
@@ -196,6 +222,146 @@ export default function Toolbar({
           </div>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+const chip = (on: boolean) =>
+  `rounded-btn border px-2.5 py-1 text-meta font-semibold disabled:cursor-not-allowed ${
+    on ? "border-autumn-deep bg-autumn-deep" : "border-secondary-edge bg-secondary hover:bg-hover"
+  }`;
+
+// Terms to include (comma-separated, starting from the default settings) and
+// the locations to search. All Locations is exclusive: picking a place clears
+// it, and clearing the last place brings it back.
+function SearchBar({
+  battlefieldId,
+  terms,
+  onTerms,
+  defaultTerms,
+  picked,
+  onPicked,
+  customLocations,
+  disabled,
+}: {
+  battlefieldId: string;
+  terms: string;
+  onTerms: (terms: string) => void;
+  defaultTerms: string[];
+  picked: string[];
+  onPicked: (picked: string[]) => void;
+  customLocations: string[];
+  disabled: boolean;
+}) {
+  const [adding, setAdding] = useState(false);
+  const [draft, setDraft] = useState("");
+
+  function toggle(id: string) {
+    if (id === "all") return onPicked(["all"]);
+    const rest = picked.filter((p) => p !== "all");
+    const next = rest.includes(id) ? rest.filter((p) => p !== id) : [...rest, id];
+    onPicked(next.length ? next : ["all"]);
+  }
+
+  async function add() {
+    const name = draft.trim();
+    setAdding(false);
+    setDraft("");
+    if (!name) return;
+    await addCustomLocation(battlefieldId, name);
+    onPicked([...picked.filter((p) => p !== "all" && p !== name), name]);
+  }
+
+  async function remove(name: string) {
+    const next = picked.filter((p) => p !== name);
+    onPicked(next.length ? next : ["all"]);
+    await removeCustomLocation(battlefieldId, name);
+  }
+
+  const isDefault = terms.split(",").map((t) => t.trim()).filter(Boolean).join(",") === defaultTerms.join(",");
+
+  return (
+    <div>
+      <div className="flex items-baseline justify-between gap-3">
+        <CardLabel>Search</CardLabel>
+        {!isDefault ? (
+          <button
+            onClick={() => onTerms(defaultTerms.join(", "))}
+            className="text-meta font-medium underline underline-offset-2"
+          >
+            Reset to defaults
+          </button>
+        ) : null}
+      </div>
+      <input
+        value={terms}
+        onChange={(e) => onTerms(e.target.value)}
+        disabled={disabled}
+        placeholder="Terms to include, separated by commas"
+        aria-label="Terms to include"
+        title="A job title must contain one of these. Left empty, the default settings are used."
+        className="glass-field mt-2 w-full px-2.5 py-1.5 text-item placeholder:text-white placeholder:opacity-80"
+      />
+      <div className="mt-2 flex flex-wrap gap-1.5" role="group" aria-label="Locations">
+        {PRESET_LOCATIONS.map((l) => (
+          <button
+            key={l.id}
+            onClick={() => toggle(l.id)}
+            disabled={disabled}
+            aria-pressed={picked.includes(l.id)}
+            className={chip(picked.includes(l.id))}
+          >
+            {l.label}
+          </button>
+        ))}
+        {customLocations.map((name) => (
+          <span key={name} className="group relative inline-flex">
+            <button
+              onClick={() => toggle(name)}
+              disabled={disabled}
+              aria-pressed={picked.includes(name)}
+              className={`${chip(picked.includes(name))} pr-6`}
+            >
+              {name}
+            </button>
+            <button
+              onClick={() => remove(name)}
+              disabled={disabled}
+              title={`Remove ${name}`}
+              aria-label={`Remove ${name}`}
+              className="absolute top-1/2 right-1 -translate-y-1/2 rounded-btn px-1 text-meta leading-none font-semibold opacity-85 hover:opacity-100"
+            >
+              ×
+            </button>
+          </span>
+        ))}
+        {adding ? (
+          <input
+            autoFocus
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={add}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") e.currentTarget.blur();
+              if (e.key === "Escape") {
+                setDraft("");
+                setAdding(false);
+              }
+            }}
+            placeholder="City or country"
+            aria-label="New location"
+            className="glass-field w-[9rem] px-2 py-1 text-meta placeholder:text-white placeholder:opacity-80"
+          />
+        ) : (
+          <button
+            onClick={() => setAdding(true)}
+            disabled={disabled}
+            className="rounded-btn border border-dashed border-dash px-2.5 py-1 text-meta font-medium hover:bg-row-selected disabled:cursor-not-allowed"
+          >
+            + New Location
+          </button>
+        )}
+      </div>
     </div>
   );
 }

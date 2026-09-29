@@ -3,6 +3,7 @@
 import { prisma } from "../../lib/prisma";
 import { uniqueSlug } from "../../lib/battlefields";
 import { copyWaveJobs } from "../../lib/waves";
+import { PRESET_LOCATIONS } from "../../lib/locations";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
@@ -100,6 +101,29 @@ export async function setArchived(id: string, archived: boolean) {
   const battlefield = await prisma.battlefield.update({ where: { id }, data: { archived } });
   revalidatePath("/", "layout");
   redirect(archived ? "/" : `/battlefields/${battlefield.slug}`);
+}
+
+// "+ New Location" on the search bar: a chip kept on this Battlefield
+export async function addCustomLocation(battlefieldId: string, location: string) {
+  const name = location.trim().slice(0, 60);
+  if (!name) return;
+  const battlefield = await prisma.battlefield.findUniqueOrThrow({ where: { id: battlefieldId } });
+  const taken = [...battlefield.customLocations, ...PRESET_LOCATIONS.flatMap((p) => [p.id, p.label])];
+  if (taken.some((l) => l.toLowerCase() === name.toLowerCase())) return;
+  await prisma.battlefield.update({
+    where: { id: battlefieldId },
+    data: { customLocations: [...battlefield.customLocations, name] },
+  });
+  revalidatePath("/", "layout");
+}
+
+export async function removeCustomLocation(battlefieldId: string, location: string) {
+  const battlefield = await prisma.battlefield.findUniqueOrThrow({ where: { id: battlefieldId } });
+  await prisma.battlefield.update({
+    where: { id: battlefieldId },
+    data: { customLocations: battlefield.customLocations.filter((l) => l !== location) },
+  });
+  revalidatePath("/", "layout");
 }
 
 // Opening a Battlefield's Discovery: jobs first seen after this stop counting

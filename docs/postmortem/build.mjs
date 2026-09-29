@@ -21,8 +21,8 @@ import {
 } from "docx";
 
 const OUT = new URL("../KAMUI-postmortem.docx", import.meta.url);
-const UPDATED = "2026-09-24";
-const LATEST = "the Battlefield-first Resumes page";
+const UPDATED = "2026-09-29";
+const LATEST = "the Discovery search bar and Stats card";
 
 // ---------------------------------------------------------------- content
 
@@ -869,6 +869,68 @@ const PHASES = [
       "'B2B Content Resume' sits in the AI/ML Engineer Battlefield; with reassignment removed it can only be moved in the database or recreated.",
     ],
     dataChanges: ["None."],
+  },
+  {
+    title: "Discovery search bar, country filter and Stats card",
+    date: "2026-09-29",
+    commit: "see git log: Discovery search bar and Stats",
+    summary:
+      "Each Battlefield's Discovery gained a search bar above Search New (terms to include, prefilled from the Battlefield's defaults, and location chips: All Locations, US, UK, Australia, Singapore, Malaysia, Remote, + New Location). The All jobs list can be filtered by country. The Selected column is split in half: Selected on top, a Stats card below with a glowing hollow donut of jobs found per country (or, for one country, per grade), with found and applied counts and a grade filter defaulting to Fit to Possible. Battlefield settings' search card is now Default settings.",
+    changes: [
+      "prisma/migrations/20260930120000_battlefield_custom_locations: Battlefield.customLocations (text[], default empty) for the + New Location chips.",
+      "web/lib/locations.ts: the preset chips, searchTargets (chips to Apify runs: all = one unfiltered run, remote = remoteOnly run, else a location string), jobCountry (raw.countryDerived, else patterns on the location text), countryLabel, chart colours per country.",
+      "web/lib/apify.ts: startSearch takes SearchTarget[] and passes remoteOnly. web/lib/searchRuns.ts: startBattlefieldSearch(battlefield, { terms, locations }) with fallbacks to the defaults; Auto-Populate calls it unchanged. The search route reads the optional JSON body.",
+      "Toolbar.tsx: SearchBar (terms input with Reset to defaults, exclusive All Locations, custom chips with remove, inline + New Location input); Search New posts { terms, locations }. Server actions addCustomLocation / removeCustomLocation.",
+      "JobBoard.tsx: All jobs label moved below the buttons; a country select beside sort and seen; the middle column holds Selected and Stats at half height each. page.tsx passes each job's country and a stats row per non-dismissed job (applied ones included).",
+      "Stats.tsx: SVG donut (stroke 8, radius 38, 2px gaps, track ring), two blurred copies for the multi-coloured glow (one breathing, off under reduced motion), centre readout and hover, a legend grid that drops the applied column in cards under 18rem.",
+      "globals.css: chart-1..5 tokens and the donut-glow animation. DESIGN-SYSTEM.md: chart palette, the Possible naming rule, the new Discovery layout, the search bar and Stats sections.",
+    ],
+    decisions: [
+      [
+        "The second grade is labelled Possible, not Probable",
+        "KAMUI's grades are Fit, Possible, Improbable, Unfit; the request said Probable. The filter reads Fit to Possible so labels match the grade dots and the judge.",
+        "A rename is one word in the filter labels if the user prefers Probable.",
+      ],
+      [
+        "New chart palette instead of the brand colours",
+        "The autumn, slate, lavender and charcoal set failed the dataviz validator as categories (too alike, too grey). Five hues were validated on the dark glass instead; countries keep a fixed colour and extra countries fold into grey Other.",
+        "Grade slices keep the grade dot colours, which fail the checks, so the legend always labels them.",
+      ],
+      [
+        "Search-bar choices are per search, not saved",
+        "The defaults stay in Default settings (and drive Auto-Populate); the bar only overrides one search. Custom location chips are saved on the Battlefield so they persist.",
+        "Reloading the page resets the bar to the defaults and All Locations.",
+      ],
+      [
+        "Stats counts applied jobs, the list does not",
+        "The user wants how many were applied to; Discovery's list still hides applied jobs.",
+        "Stats reads up to the same 500 most recently seen jobs as the list.",
+      ],
+    ],
+    incidents: [
+      [
+        "Discovery returned 500 after the migration.",
+        "The running dev server still held the old Prisma client, so battlefield.customLocations was undefined.",
+        "Restarted the dev server after prisma generate (a known step, now hit again).",
+      ],
+      [
+        "Running Prettier reformatted all of JobBoard.tsx.",
+        "The repo has no Prettier config, so it used 80 columns against the code's wider style.",
+        "Restored the file and re-applied only the intended edits; do not run Prettier on this repo.",
+      ],
+    ],
+    verification: [
+      "tsc and eslint clean.",
+      "Discovery at 1920x1080, 1440x900 and 1280x680: no page overflow, no console errors; the Stats legend fits with labels readable at each size.",
+      "Stats on AI/ML Engineer: default Fit to Possible shows 7 found (US 6, India 1); All categories 37; US by grade Fit 3, Possible 3, Improbable 26, Unfit 1, Unranked 3; hovering the ring shows 26 Improbable in the centre.",
+      "List country filter: 37 rows to 36 for the US.",
+      "Chips: UK then Remote clears All Locations; + New Location adds Berlin and selects it; its x removes it. Search New was intercepted in the browser (never reached Apify) and sent {terms: [AI engineer, ML engineer], locations: [United Kingdom, remote, Berlin]}.",
+    ],
+    risks: [
+      "Remote-only searches rely on the actor's remoteOnly input; untested against Apify because it costs a run.",
+      "Country detection is heuristic: about half the jobs have countryDerived; the rest are matched on location text, and anything unmatched is Unknown (left out of the country list, grouped in Other on the chart).",
+    ],
+    dataChanges: ["Battlefield.customLocations column added (empty for existing rows). A test chip (Berlin) was added and removed on AI/ML Engineer."],
   },
 ];
 

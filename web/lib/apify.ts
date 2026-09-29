@@ -3,6 +3,7 @@
 // ids straight away, and the status route (lib/searchRuns.ts) checks them.
 // The actor takes a single location string, so each location is its own run.
 import { ApifyClient } from "apify-client";
+import type { SearchTarget } from "./locations";
 
 const ACTOR_ID = "jharney/career-site-jobs-api";
 export const TERMINAL = ["SUCCEEDED", "FAILED", "ABORTED", "TIMED-OUT"];
@@ -29,14 +30,19 @@ export type SearchParams = {
   maxJobsPerBoard: number;
 };
 
-// Starts one actor run per location. Returns the ids of the runs that started
-// (they are being paid for, so they must be recorded) and any start errors.
-export async function startSearch(params: SearchParams, locations: string[]) {
+// Starts one actor run per target (a location, or remote-only). Returns the ids
+// of the runs that started (they are being paid for, so they must be recorded)
+// and any start errors.
+export async function startSearch(params: SearchParams, targets: SearchTarget[]) {
   const results = await Promise.allSettled(
-    (locations.length ? locations : [""]).map((location) =>
-      client
-        .actor(ACTOR_ID)
-        .start({ mode: "search", includeDescription: true, location, ...params })
+    (targets.length ? targets : [{ location: "" }]).map(({ location, remoteOnly }) =>
+      client.actor(ACTOR_ID).start({
+        mode: "search",
+        includeDescription: true,
+        location,
+        ...(remoteOnly ? { remoteOnly: true } : {}),
+        ...params,
+      })
     )
   );
   return {

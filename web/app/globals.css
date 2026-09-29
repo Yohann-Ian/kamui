@@ -28,6 +28,15 @@
   --color-grade-unfit: #ef4444;
   --color-grade-none: #8c99a6;
 
+  /* chart categories, e.g. countries on the Stats donut. The dataviz reference
+     dark palette, validated against the glass surface (lightness band, chroma
+     floor, colour-blind separation, contrast). Fixed order. */
+  --color-chart-1: #3987e5;
+  --color-chart-2: #d95926;
+  --color-chart-3: #199e70;
+  --color-chart-4: #c98500;
+  --color-chart-5: #d55181;
+
   /* glass surfaces (section 3) */
   --color-tint: rgba(8, 12, 17, 0.26);
   --color-sidebar: rgba(0, 0, 0, 0.22);
@@ -145,4 +154,20 @@ input[type="range"] {
 .panel-scroll {
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.28) transparent;
+}
+
+/* The Stats donut's glow: a blurred copy of the ring that slowly breathes */
+.donut-glow {
+  opacity: 1;
+  animation: donut-breathe 4.5s ease-in-out infinite;
+}
+@keyframes donut-breathe {
+  50% {
+    opacity: 0.55;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .donut-glow {
+    animation: none;
+  }
 }

@@ -7,6 +7,7 @@ import { after } from "next/server";
 import { prisma } from "./prisma";
 import { getRuns, readJobs, startSearch, TERMINAL, type RunState, type SearchParams } from "./apify";
 import { rankBattlefield } from "./rank";
+import { searchTargets, type SearchTarget } from "./locations";
 import { APPLIED_STAGES, saveToBattlefield, toJobData } from "./jobs";
 import { HttpError } from "./http";
 import type { Battlefield, Run } from "../generated/prisma/client";
@@ -17,8 +18,8 @@ export const ACTIVE = ["running", "ingesting"];
 // Battlefield with bigger caps later.
 const EXPLORE_CAPS = { maxBoards: 500, maxJobs: 50, maxJobsPerBoard: 10 };
 
-async function launch(runId: string, params: SearchParams, locations: string[]) {
-  const { ids, errors } = await startSearch(params, locations);
+async function launch(runId: string, params: SearchParams, targets: SearchTarget[]) {
+  const { ids, errors } = await startSearch(params, targets);
   if (ids.length === 0) {
     await prisma.run.update({
       where: { id: runId },
@@ -35,8 +36,13 @@ async function launch(runId: string, params: SearchParams, locations: string[]) 
   });
 }
 
+// What one search looks for. From the Battlefield's search bar; anything left
+// out falls back to the Battlefield's default settings (Auto-Populate uses the
+// defaults).
+export type SearchOverrides = { terms?: string[]; locations?: string[] };
+
 // One search per Battlefield at a time: a second click returns the running one.
-export async function startBattlefieldSearch(battlefield: Battlefield) {
+export async function startBattlefieldSearch(battlefield: Battlefield, overrides: SearchOverrides = {}) {
   const active = await prisma.run.findFirst({
     where: { battlefieldId: battlefield.id, kind: "search", status: { in: ACTIVE } },
     orderBy: { startedAt: "desc" },
@@ -47,13 +53,15 @@ export async function startBattlefieldSearch(battlefield: Battlefield) {
   const launched = await launch(
     run.id,
     {
-      titleIncludes: battlefield.titleIncludes,
+      titleIncludes: overrides.terms?.length ? overrides.terms : battlefield.titleIncludes,
       titleExcludes: battlefield.titleExcludes,
       maxBoards: battlefield.maxBoards,
       maxJobs: battlefield.maxJobs,
       maxJobsPerBoard: battlefield.maxJobsPerBoard,
     },
-    battlefield.locations
+    overrides.locations
+      ? searchTargets(overrides.locations)
+      : battlefield.locations.map((location) => ({ location }))
   );
   return { run: launched, alreadyRunning: false };
 }
@@ -62,7 +70,7 @@ export async function startBattlefieldSearch(battlefield: Battlefield) {
 export async function startExplore(query: string, locations: string[]) {
   const wave = await prisma.searchWave.create({ data: { query, locations } });
   const run = await prisma.run.create({ data: { kind: "search", searchWaveId: wave.id } });
-  const launched = await launch(run.id, { query, ...EXPLORE_CAPS }, locations);
+  const launched = await launch(run.id, { query, ...EXPLORE_CAPS }, locations.map((location) => ({ location })));
   return { run: launched, wave };
 }
 

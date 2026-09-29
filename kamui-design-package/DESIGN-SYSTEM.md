@@ -121,6 +121,33 @@ The job list shows grade as a 10px solid circle, no border, no ring, no shadow.
 A dot, not a pill. Pills were tried and rejected: at forty rows they become a wall
 of colour. The dot carries the same information at a fraction of the weight.
 
+The second grade is called **Possible** everywhere, including filter labels
+("Fit to Possible"). Do not introduce "Probable".
+
+### Chart palette
+
+Charts colour countries with five fixed hues. The brand palette fails as a
+categorical set (the autumn steps are too alike, slate and charcoal too grey), so
+these were chosen and checked with the dataviz palette validator against the dark
+glass surfaces (`#14181C`, `#1F262D`, `#2B2F33`): lightness band, chroma floor,
+colour-blind separation between neighbours and contrast all pass.
+
+| Token | Hex | Country |
+|---|---|---|
+| `chart-1` | `#3987E5` | United States |
+| `chart-2` | `#D95926` | United Kingdom |
+| `chart-3` | `#199E70` | Australia |
+| `chart-4` | `#C98500` | Singapore |
+| `chart-5` | `#D55181` | Malaysia |
+| `grade-none` | `#8C99A6` | Other (every other country, folded together) |
+
+A colour belongs to its country, not its rank: filtering never repaints a
+country. A chart never shows more than six slices; anything past the five goes
+into Other. When a chart shows grades it uses the grade dot colours above. Those
+fail the validator's lightness and chroma checks, and Possible's blue has only
+2.96:1 contrast on the glass, so a grade chart always carries a labelled legend.
+Chart text stays white; colour sits only on the marks and the legend dots.
+
 ### Glass surfaces
 
 | Surface | Fill | Blur |
@@ -166,15 +193,54 @@ give their height to the Battlefields.
 
 ### Discovery content area
 
-- Header: Battlefield name, a stat line beneath it, and two buttons on the right.
-  Search New is primary (solid autumn), Rank is secondary (translucent with a
-  white border).
-- A row of cards describing the **currently selected job only**: a wide card with
-  its title and actions, then Score, Grade and Pay as coloured blocks.
-- A "Why this grade" card.
-- The job list, filling the remaining height.
+- Header: Battlefield name and a stat line beneath it.
+- Three columns below it:
+  1. **Search and All jobs.** A "Search" label, the terms input, the location
+     chips, then Search New (primary, solid autumn) and Rank (secondary). Then the
+     "All jobs" label, the sort, seen and country filters, and the list, filling
+     the remaining height.
+  2. **Selected on top, Stats below**, half the column each. The Selected card
+     describes the **currently selected job only**: title and actions, then
+     Score, Grade and Pay as small coloured tiles. It scrolls inside its half.
+  3. **Why this grade**, a tall card with the full description.
 
-The coloured cards describe one job. Never colour-block the list rows themselves.
+The coloured tiles describe one job. Never colour-block the list rows themselves.
+
+### The search bar
+
+Sits above Search New. The terms input starts with the Battlefield's default
+terms (comma-separated) and a "Reset to defaults" link appears once they are
+edited. Below it, location chips: All Locations, US, UK, Australia, Singapore,
+Malaysia, Remote, any custom locations, then a dashed "+ New Location" chip that
+turns into a small input. Chips use the status-button style from the Selected
+card (a picked chip is solid autumn deep). All Locations is exclusive: picking a
+place clears it, clearing the last place brings it back. A custom chip has a
+small × to remove it. Automation toggles never appear here; they live in
+Battlefield settings.
+
+### Stats
+
+A glass card in the lower half of the middle column. The "Stats" label on the
+left, two selects on the right: grades (All categories, Fit, Fit to Possible,
+Fit to Improbable, Improbable, Unfit; default Fit to Possible) and country (All
+countries, then the countries present, most jobs first).
+
+- **All countries:** a donut of jobs found per country, using the chart palette.
+- **One country:** the same donut split by grade, using the grade dot colours
+  (plus grey for unranked when All categories is chosen).
+
+The donut is a hollow ring (stroke 8 in a 100-unit viewBox, radius 38) on a faint
+track, with a 2px surface gap between slices. Behind it sit two blurred copies of
+the ring in the slices' own colours: a wide soft bloom that breathes slowly
+(opacity 1 to 0.55 over 4.5s, still under reduced motion) and a tight edge glow.
+That is the multi-coloured glow. The centre shows the total found and applied in
+white, or the hovered slice's numbers. Hovering a slice or a legend row dims the
+others.
+
+The legend sits beside the ring: a dot, the name, found and applied counts in
+monospace. When the card is narrower than 18rem the applied column is dropped;
+the centre readout still gives it. Empty states are a plain sentence ("No graded
+jobs match this filter. Rank to grade them.").
 
 ### Job list rows
 
