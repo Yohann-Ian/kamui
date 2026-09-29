@@ -49,6 +49,15 @@ Searching costs money per job found. Grading costs money per job graded. So ever
 
 **Slow searches survive a host that hates slow requests.** A search can take several minutes, and my host cuts long requests off. So a search now starts the work and returns in about a second, the page polls for progress, a small scheduled job saves results even when nobody is watching, and a heartbeat lets a crashed save be retried without ever stealing a slow one from itself. That one took three rounds of "fix it, find the next problem".
 
+**Auto-Populate spends money while I sleep, so it is paranoid on purpose.** Once a day, at 06:00 my time, a tiny Railway cron wakes up and asks the app to search every Battlefield I have switched Auto-Populate on for. It does not trust itself. A Battlefield is skipped if a search for it is already running, so searches never stack. It is skipped if anything searched it in the last 20 hours, manual or automatic, so a cron that fires twice cannot charge me twice. Then it claims the Battlefield in a single database write that only succeeds if nobody else claimed it inside that window, which closes the tiny gap where two fires land in the same instant and both think they are first. If starting the search then fails, it hands the claim back, so a failure never pretends it ran. Each Battlefield runs in its own little bubble, so one bad apple does not stop the rest, and the cron's log lists exactly what was started, what was skipped and why. It only starts the search; the five minute sweep saves the results, and Auto-Rank grades them only if I have switched that on too. I tested it by firing it twice at the same instant. Exactly one search started.
+
+**The resume vault follows the same rule as everything else: the Battlefield comes first.** Every resume lives inside a Battlefield and cannot wander off to another one. Inside it are versions, A, B, C and onwards, and each version has one slot for the PDF and one for the Word file, plus a note on what makes it different ("the Australian one", in my case). A few decisions I am happy with:
+
+- The files are stored in Postgres itself. My host wipes its disk on every redeploy, and a resume vault that forgets your resumes is not much of a vault. Resumes are small, so the database is the boring, durable choice.
+- Uploads go through a normal API route rather than a server action, because server actions cap uploads at 1 MB and a designed PDF can easily be bigger. The app also checks the first few bytes of every file, so a PDF has to actually be a PDF and a Word file has to actually be a Word file, whatever its name says.
+- Previews happen inside the app. PDFs open in the browser's own viewer, pixel for pixel. Browsers cannot show Word files at all, so those are converted to a clean readable page on the fly and shown in a sandboxed frame that is not allowed to run anything. The preview gets most of the screen, because that is what I am there to read.
+- The whole section sits behind a password, because resumes carry my phone number and address. Every page, download, preview and upload checks it on the server, not just the screen. A changed password is stored as a salted hash, never as text. Unlocking sets a signed cookie, and the signature is tied to the current password, so changing the password instantly signs out every other device. Ten wrong guesses and it stops listening for fifteen minutes.
+
 **A missing job is not a closed job.** Searches are capped, so a job that did not come back today usually just was not reached. KAMUI never deletes anything for being absent. It shows me when it last saw a job, and only confirms a closure by checking the posting itself when I open it. Anything I have applied to is never hidden, because that is my hunt history.
 
 ## Under the hood
@@ -60,6 +69,8 @@ Searching costs money per job found. Grading costs money per job graded. So ever
 | Database | PostgreSQL through Prisma 7 |
 | Job sourcing | An Apify actor that searches company career sites |
 | Grading | Claude Haiku, forced to answer in JSON |
+| Resume previews | The browser's own PDF viewer, and mammoth to turn Word files into a readable page |
+| Resume lock | A salted scrypt password hash and an HMAC-signed cookie, both built on Node's crypto |
 | Hosting | Railway: the web app, Postgres, and two tiny cron jobs (one saves finished searches every five minutes, one runs the daily Auto-Populate) |
 
 ## Running it yourself
