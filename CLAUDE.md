@@ -76,6 +76,8 @@ One Next.js app and one Postgres database, deployed on Railway as four services:
   and one DOCX per version (`@@unique([versionId, kind])`). File bytes are stored in
   Postgres, because Railway's disk does not survive a redeploy. Never select `data`
   in list queries.
+- **AppSetting** — key/value settings: `resumes.passwordHash` (salted scrypt; absent
+  means the default password) and `resumes.signingKey` (signs the unlock cookie).
 - **Run** — an audit row for every search and rank, so spend is visible. A search
   Run holds its Apify run ids (`apifyRunIds`, one per location), its Battlefield or
   (for Explore) its `searchWaveId`, and `heartbeatAt`. Status:
@@ -115,6 +117,15 @@ One Next.js app and one Postgres database, deployed on Railway as four services:
 - **Job closure**: never infer that a job closed because a search did not return it
   (searches are capped). Closure is only set by the on-demand URL check when a job is
   opened, and a job with an Application is never auto-hidden or deleted.
+- **The Resumes section is password-locked** (the rest of the app is not). The page,
+  every `/api/resumes/*` route and every resume server action check
+  `isResumesUnlocked()` / `requireResumesUnlocked()` from `web/lib/resumeLock.ts` on
+  the server. The default password is hardcoded there (`DEFAULT_PASSWORD`) until it
+  is changed with Change password on the unlocked page, which stores a hash in
+  AppSetting and signs every other device out. Unlocking sets an HttpOnly cookie
+  (`kamui_resumes`, 30 days) signed with `resumes.signingKey` over the current hash.
+  10 wrong attempts per address lock the form for 15 minutes (in memory). To reset
+  a forgotten password, delete the `resumes.passwordHash` row: the default applies.
 - **Every screen is two files**: a `page.tsx` server component that queries the
   database, and a client component that handles interaction. Database access stays
   on the server.
@@ -219,6 +230,8 @@ request, five jobs at a time.
     web/app/tracking/TrackingBoard.tsx  Tracking (client)
     web/app/resumes/page.tsx, Resumes.tsx, actions.ts  Resumes: list, versions, notes, slots, preview
     web/lib/resumes.ts          file kinds, type checks, version labels, download headers
+    web/lib/resumeLock.ts       the Resumes password lock: check, unlock, lock, change password
+    web/app/resumes/Lock.tsx    the lock screen
     web/public/backgrounds/     web-sized background photographs (npm run backgrounds)
     web/scripts/sync-backgrounds.mjs    resizes <repo>/images into web/public/backgrounds
 

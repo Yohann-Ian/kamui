@@ -9,9 +9,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   addVersion,
+  changePasswordAction,
   createResume,
   deleteResume,
   deleteVersion,
+  lockAction,
   removeFile,
   saveVersionNotes,
   updateResume,
@@ -56,6 +58,30 @@ function NewResume({ battlefields, onDone }: { battlefields: Battlefield[]; onDo
         ) : null}
         {state.error ? <span className={`text-meta ${errorMark}`}>{state.error}</span> : null}
       </div>
+    </form>
+  );
+}
+
+// Only on the unlocked page: set a new Resumes password
+function ChangePassword({ onDone }: { onDone: () => void }) {
+  const [state, action, pending] = useActionState(changePasswordAction, {});
+  return (
+    <form action={action} className="glass-card mt-3 flex flex-wrap items-center gap-2 px-3.5 py-3">
+      <CardLabel className="w-full">New password</CardLabel>
+      <input name="password" type="password" placeholder="New password" aria-label="New password"
+        autoComplete="new-password" className={`${field} w-56 placeholder:text-white placeholder:opacity-80`} />
+      <input name="confirm" type="password" placeholder="Type it again" aria-label="Confirm new password"
+        autoComplete="new-password" className={`${field} w-56 placeholder:text-white placeholder:opacity-80`} />
+      <button type="submit" disabled={pending} className={`${btnPrimary} py-1.5`}>
+        {pending ? "Saving..." : "Save password"}
+      </button>
+      <button type="button" onClick={onDone} className={`${btnSecondary} py-1.5`}>
+        {state.saved ? "Close" : "Cancel"}
+      </button>
+      {state.error ? <span className={`text-meta ${errorMark}`}>{state.error}</span> : null}
+      {state.saved ? (
+        <span className="text-meta font-medium">Password changed. Other devices will need the new one.</span>
+      ) : null}
     </form>
   );
 }
@@ -133,6 +159,7 @@ export default function Resumes({
   selectedVersionId: string | null;
 }) {
   const [creating, setCreating] = useState(resumes.length === 0);
+  const [changingPassword, setChangingPassword] = useState(false);
   const [notesState, setNotesState] = useState<"idle" | "saving" | "saved">("idle");
   const [pending, startTransition] = useTransition();
 
@@ -162,11 +189,24 @@ export default function Resumes({
   return (
     <section className="flex h-full min-h-0 flex-col gap-4 px-6 pt-6">
       <div className="shrink-0">
-        <h1 className="font-display text-heading font-bold tracking-[-0.015em]">Resumes</h1>
-        <p className="mt-1 text-item font-medium">
-          {resumes.length} {resumes.length === 1 ? "resume" : "resumes"}, {versionCount}{" "}
-          {versionCount === 1 ? "version" : "versions"}
-        </p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="font-display text-heading font-bold tracking-[-0.015em]">Resumes</h1>
+            <p className="mt-1 text-item font-medium">
+              {resumes.length} {resumes.length === 1 ? "resume" : "resumes"}, {versionCount}{" "}
+              {versionCount === 1 ? "version" : "versions"}
+            </p>
+          </div>
+          <div className="flex shrink-0 gap-2">
+            <button onClick={() => setChangingPassword((v) => !v)} className={btnSecondary}>
+              Change password
+            </button>
+            <button onClick={() => startTransition(() => lockAction())} className={btnSecondary}>
+              Lock
+            </button>
+          </div>
+        </div>
+        {changingPassword ? <ChangePassword onDone={() => setChangingPassword(false)} /> : null}
       </div>
 
       <div className="flex min-h-0 flex-1 gap-4 pb-4">

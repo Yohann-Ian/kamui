@@ -179,3 +179,10 @@ model ResumeFile {
 
   @@unique([versionId, kind])
 }
+
+// Small app-wide settings, e.g. the Resumes password hash and cookie signing key.
+model AppSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}

@@ -22,7 +22,7 @@ import {
 
 const OUT = new URL("../KAMUI-postmortem.docx", import.meta.url);
 const UPDATED = "2026-09-24";
-const LATEST = "the Resumes page";
+const LATEST = "the Resumes password lock";
 
 // ---------------------------------------------------------------- content
 
@@ -759,6 +759,71 @@ const PHASES = [
       "Applied migration 20260928140000_resumes (new tables). The test resume was deleted; the tables are empty.",
     ],
   },
+  {
+    title: "Password lock on Resumes",
+    date: "2026-09-29",
+    commit: "see git log: Lock the Resumes section",
+    summary:
+      "The Resumes section is behind a password, checked on the server for the page, every resume API route and every resume action. The default password is hardcoded; it can be changed only from the unlocked Resumes page, after which the stored hash overrides the default and other devices are signed out.",
+    changes: [
+      "prisma/migrations/20260929120000_app_settings: new AppSetting key/value table.",
+      "web/lib/resumeLock.ts: default password, scrypt hashing, HMAC-signed HttpOnly cookie, isResumesUnlocked / requireResumesUnlocked, unlock with a rate limit, lock, change password.",
+      "web/app/resumes/Lock.tsx (lock screen); page.tsx shows it and loads no resume data while locked; Resumes.tsx gains Change password and Lock.",
+      "All resume server actions and the three /api/resumes routes call requireResumesUnlocked (401 otherwise).",
+    ],
+    decisions: [
+      [
+        "Only Resumes is locked, not the whole app",
+        "User request; resumes are the sensitive part.",
+        "Battlefields, notes and Explore remain public on the Railway domain.",
+      ],
+      [
+        "Default password hardcoded in lib/resumeLock.ts",
+        "User request (\"hardcode it for now\").",
+        "It is visible to anyone who can read the repository until it is changed in the app.",
+      ],
+      [
+        "A changed password is stored as a salted scrypt hash in AppSetting",
+        "Survives redeploys; never stored in plain text.",
+        "Deleting the resumes.passwordHash row restores the default.",
+      ],
+      [
+        "The cookie signature covers the current password hash",
+        "Changing the password immediately signs out every other device.",
+        "The device that changed it is re-issued a valid cookie.",
+      ],
+      [
+        "Signing key generated on first use and stored in AppSetting",
+        "No extra Railway variable needed.",
+        "",
+      ],
+      [
+        "10 wrong attempts per address per 15 minutes, counted in memory",
+        "The password is short; this slows guessing. One web instance, so memory is enough.",
+        "The count resets when the web service restarts or redeploys.",
+      ],
+    ],
+    incidents: [
+      [
+        "The first lock test reported the password change as not saved.",
+        "Test race: its check matched the 'What is different' label before the first (mismatched) submit finished, so it typed the new password into fields React then cleared.",
+        "Reproduced step by step: the change saves and works. The test was fixed.",
+      ],
+    ],
+    verification: [
+      "tsc and eslint clean.",
+      "Two browser contexts as two devices: locked by default with no resume data loaded; a wrong password refused; 96%+5 unlocks; download works while unlocked; a device without the cookie gets 401 from download, inline view, DOCX preview and upload; after changing the password the old one fails, the new one works, the changing device stays unlocked and the other device is locked again; Lock locks; the 11th wrong attempt is refused even with the right password.",
+      "Afterwards the stored hash was deleted, so the password is back to the default, and 96%+5 was confirmed to unlock. The test resume was deleted.",
+    ],
+    risks: [
+      "Anyone who can read the repository knows the default password until it is changed in the app.",
+      "The attempt limit is in memory and per address; it resets on redeploy.",
+      "Errors on the change-password form clear both fields (React resets forms after an action).",
+    ],
+    dataChanges: [
+      "Applied migration 20260929120000_app_settings (new table). AppSetting holds resumes.signingKey; no password hash is stored (the default applies).",
+    ],
+  },
 ];
 
 // Symptom-first lookup for later debugging.
@@ -787,6 +852,9 @@ const GOTCHAS = [
   ["auto-populate cron logs 401", "CRON_SECRET differs between the web and auto-populate services, or AUTO_POPULATE_URL points at the wrong host."],
   ["A resume upload fails or is refused", "The slot checks the file really is a PDF (starts with %PDF) or a DOCX (a zip); the cap is 10 MB. Uploads go through /api/resumes/versions/<id>/files, not a server action (1 MB body limit)."],
   ["The DOCX preview looks different from Word", "Expected: it is converted to plain HTML by mammoth, so fonts and layout are not kept. Upload the PDF for an exact preview."],
+  ["Forgot the Resumes password", "Delete the AppSetting row with key resumes.passwordHash; the default password in web/lib/resumeLock.ts applies again."],
+  ["Resumes shows the lock screen on every visit", "The kamui_resumes cookie is missing or no longer valid: the password was changed on another device, it expired (30 days), or cookies are blocked. On http://localhost the cookie is not Secure; on Railway it is."],
+  ["Too many wrong attempts on Resumes", "10 failures per address per 15 minutes, counted in memory: wait, or redeploy/restart the web service to clear it."],
   ["Port 3000 already in use", "A previous next dev left its node process running. Stop the process listening on 3000."],
 ];
 
@@ -794,7 +862,8 @@ const OPEN_ISSUES = [
   "B2B sourcing is thin: 3 jobs from about 460 sites for the B2B Battlefield, and an Explore search for \"content writer\" found only 2. The actor's index has few content roles.",
   "AI/ML sourcing surfaces mostly Senior and Staff roles, which grade Improbable.",
   "The B2B rubric contradicts itself on senior individual-contributor roles (Fit vs Possible).",
-  "The app has no login: on the public Railway domain anyone can see Battlefields, notes and, now, download resumes.",
+  "Only Resumes is password-protected; the rest of the app (Battlefields, notes, Explore) is public on the Railway domain.",
+  "The Resumes default password is in the repository until it is changed in the app.",
   "Manual Rank still runs inside its request; large ranks could time out on Railway.",
   "The Railway sweep cron service has to be created by hand (see CLAUDE.md) and has not been verified on Railway.",
   "The deployed Railway app has not been verified after the deploy fix and the async search change.",

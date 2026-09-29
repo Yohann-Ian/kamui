@@ -1,4 +1,6 @@
 import { prisma } from "../../lib/prisma";
+import { isResumesUnlocked } from "../../lib/resumeLock";
+import Lock from "./Lock";
 import Resumes from "./Resumes";
 
 export const dynamic = "force-dynamic";
@@ -8,6 +10,9 @@ export default async function ResumesPage({
 }: {
   searchParams: Promise<{ version?: string }>;
 }) {
+  // Locked: show only the password screen and load nothing
+  if (!(await isResumesUnlocked())) return <Lock />;
+
   const params = await searchParams;
   const [resumes, battlefields] = await Promise.all([
     prisma.resume.findMany({

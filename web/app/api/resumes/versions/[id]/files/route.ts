@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { HttpError, errorResponse } from "@/lib/http";
+import { requireResumesUnlocked } from "@/lib/resumeLock";
 import { MAX_RESUME_BYTES, formatBytes, isResumeKind, looksLike } from "@/lib/resumes";
 
 // Upload a file into a version's PDF or DOCX slot (form fields: kind, file).
@@ -7,6 +8,7 @@ import { MAX_RESUME_BYTES, formatBytes, isResumeKind, looksLike } from "@/lib/re
 // server actions cap request bodies at 1 MB.
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    await requireResumesUnlocked();
     const versionId = (await params).id;
     const version = await prisma.resumeVersion.findUnique({ where: { id: versionId }, select: { id: true } });
     if (!version) throw new HttpError(404, "No such resume version");

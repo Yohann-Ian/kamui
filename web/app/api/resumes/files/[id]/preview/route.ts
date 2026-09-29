@@ -1,6 +1,7 @@
 import mammoth from "mammoth";
 import { prisma } from "@/lib/prisma";
 import { HttpError, errorResponse } from "@/lib/http";
+import { requireResumesUnlocked } from "@/lib/resumeLock";
 
 // A readable preview of a DOCX, which browsers cannot display: mammoth turns
 // it into plain HTML (headings, paragraphs, lists, bold, tables, images). It
@@ -20,6 +21,7 @@ const PAGE_CSS = `
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    await requireResumesUnlocked();
     const file = await prisma.resumeFile.findUnique({ where: { id: (await params).id } });
     if (!file || file.kind !== "docx") throw new HttpError(404, "No such DOCX file");
 
