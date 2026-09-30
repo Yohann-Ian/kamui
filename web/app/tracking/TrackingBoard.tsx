@@ -2,12 +2,14 @@
 
 // Tracking: the jobs you have set a status on, grouped by stage. Same shell and
 // patterns as Discovery: the selected job's card with Score and Grade, then the
-// grouped list in the job-list row pattern.
+// grouped list in the job-list row pattern. "+ Add job" adds a posting found
+// elsewhere (LinkedIn or any job page) straight into a stage.
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
 import { setStatus, saveNote } from "../actions";
-import { CardLabel, GradeDot, StatCard, btnPrimary, field } from "../shell/ui";
+import { addManualJob } from "./actions";
+import { CardLabel, GradeDot, StatCard, btnPrimary, btnSecondary, field } from "../shell/ui";
 
 const STAGES = ["Aim", "Applied", "Screening", "Interview", "Offer", "Rejected", "Dropped"];
 
@@ -25,27 +27,174 @@ type Job = {
   notes: Record<string, string>;
 };
 
+const label = "mb-1 block text-label font-semibold uppercase tracking-[0.1em] opacity-85";
+const input = `${field} w-full placeholder:text-white placeholder:opacity-80`;
+
+// A posting found elsewhere, added straight into a stage. The link is the
+// posting's identity: LinkedIn links of any shape resolve to the same job.
+function AddJob({
+  battlefields,
+  battlefieldId,
+  onAdded,
+  onCancel,
+}: {
+  battlefields: { id: string; name: string }[];
+  battlefieldId: string;
+  onAdded: (jobId: string, message: string) => void;
+  onCancel: () => void;
+}) {
+  // A submit handler rather than a form action: React resets a form after its
+  // action, which would wipe what was typed when the server sends back an error.
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  function submit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    startTransition(async () => {
+      const result = await addManualJob({}, formData);
+      if (result.jobId) onAdded(result.jobId, result.message ?? "Added.");
+      else setError(result.error ?? "Could not add the job.");
+    });
+  }
+
+  return (
+    // the buttons stay in view; only the fields scroll on a short screen
+    <form onSubmit={submit} className="glass-card flex max-h-[80%] min-h-0 shrink-0 flex-col px-5 py-4">
+      <CardLabel>Add a job</CardLabel>
+      <div className="panel-scroll -mx-1 min-h-0 overflow-y-auto px-1">
+        <p className="mt-1 text-meta leading-[1.45] font-medium">
+          For a posting you found on LinkedIn or anywhere else. Paste its link and the basics; pasting the
+          description lets Rank grade it.
+        </p>
+        <div className="mt-3 grid grid-cols-6 gap-x-3 gap-y-2.5">
+          <label className="col-span-6">
+            <span className={label}>Link</span>
+            <input
+              name="url"
+              type="url"
+              required
+              autoFocus
+              placeholder="https://www.linkedin.com/jobs/view/..."
+              className={input}
+            />
+          </label>
+          <label className="col-span-3">
+            <span className={label}>Title</span>
+            <input name="title" required placeholder="Job title" className={input} />
+          </label>
+          <label className="col-span-3">
+            <span className={label}>Company</span>
+            <input name="company" required placeholder="Company" className={input} />
+          </label>
+          <label className="col-span-2">
+            <span className={label}>Location</span>
+            <input name="location" placeholder="e.g. Singapore, or Remote" className={input} />
+          </label>
+          <label className="col-span-2">
+            <span className={label}>Battlefield</span>
+            <select name="battlefieldId" defaultValue={battlefieldId} className={`${field} w-full`}>
+              {battlefields.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="col-span-2">
+            <span className={label}>Stage</span>
+            <select name="stage" defaultValue="Aim" className={`${field} w-full`}>
+              {STAGES.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="col-span-6">
+            <span className={label}>Note (optional)</span>
+            <textarea
+              name="note"
+              rows={2}
+              placeholder="Saved as the note for this stage"
+              className={`${input} resize-none`}
+            />
+          </label>
+          <label className="col-span-6">
+            <span className={label}>Description (optional)</span>
+            <textarea name="description" rows={3} placeholder="Paste the job description" className={`${input} resize-y`} />
+          </label>
+        </div>
+      </div>
+      <div className="mt-3.5 flex shrink-0 flex-wrap items-center gap-2">
+        <button type="submit" disabled={pending} className={btnPrimary}>
+          {pending ? "Adding..." : "Add job"}
+        </button>
+        <button type="button" onClick={onCancel} className={btnSecondary}>
+          Cancel
+        </button>
+        {error ? (
+          <span className="text-meta font-semibold underline decoration-grade-unfit decoration-2 underline-offset-4">
+            {error}
+          </span>
+        ) : null}
+      </div>
+    </form>
+  );
+}
+
 export default function TrackingBoard({
   jobs,
   battlefield,
+  battlefields,
 }: {
   jobs: Job[];
-  battlefield: { slug: string; name: string } | null;
+  battlefield: { id: string; slug: string; name: string } | null;
+  battlefields: { id: string; name: string }[];
 }) {
   const [selectedId, setSelectedId] = useState(jobs[0]?.id ?? null);
+  const [adding, setAdding] = useState(false);
+  const [flash, setFlash] = useState<string | null>(null);
   const selected = jobs.find((j) => j.id === selectedId) ?? null;
   const notedStages = selected ? STAGES.filter((s) => selected.notes[s]) : [];
 
   return (
     <section className="flex h-full min-h-0 flex-col gap-4 px-6 pt-6">
-      <div className="shrink-0">
-        <h1 className="font-display text-heading font-bold tracking-[-0.015em]">Tracking</h1>
-        <p className="mt-1 text-item font-medium">
-          {battlefield ? `${battlefield.name}, ${jobs.length} tracked` : "No Battlefields yet"}
-        </p>
+      <div className="flex shrink-0 items-start justify-between gap-4">
+        <div>
+          <h1 className="font-display text-heading font-bold tracking-[-0.015em]">Tracking</h1>
+          <p className="mt-1 text-item font-medium">
+            {battlefield ? `${battlefield.name}, ${jobs.length} tracked` : "No Battlefields yet"}
+            {flash ? `. ${flash}` : ""}
+          </p>
+        </div>
+        {battlefields.length && !adding ? (
+          <button
+            onClick={() => {
+              setAdding(true);
+              setFlash(null);
+            }}
+            className={btnSecondary}
+          >
+            + Add job
+          </button>
+        ) : null}
       </div>
 
-      {jobs.length === 0 ? (
+      {adding ? (
+        <AddJob
+          battlefields={battlefields}
+          battlefieldId={battlefield?.id ?? battlefields[0].id}
+          onAdded={(jobId, message) => {
+            setAdding(false);
+            setFlash(message);
+            setSelectedId(jobId);
+          }}
+          onCancel={() => setAdding(false)}
+        />
+      ) : null}
+
+      {jobs.length === 0 && !adding ? (
         <p className="text-item font-medium">
           Nothing tracked{battlefield ? ` in ${battlefield.name}` : ""} yet. Set a status on a job in{" "}
           {battlefield ? (
@@ -55,11 +204,11 @@ export default function TrackingBoard({
           ) : (
             "Discovery"
           )}
-          .
+          , or add one you found elsewhere with + Add job.
         </p>
       ) : null}
 
-      {selected ? (
+      {selected && !adding ? (
         <>
           <div className="flex shrink-0 gap-3.5">
             <div className="glass-card min-w-0 flex-1 px-5 py-[1.125rem]">

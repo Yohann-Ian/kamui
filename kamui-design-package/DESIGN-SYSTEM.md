@@ -425,6 +425,18 @@ is a glass card containing the document itself. The document is the one place
 dark text on a light ground appears: it is the user's file, shown as a page, not
 interface text.
 
+### Tracking: adding a job by hand
+
+"+ Add job" is a secondary button at the right of the Tracking header (the page's
+primary button stays Open posting on the selected card). It opens a glass card
+under the header: the posting link (LinkedIn or any job page), title, company,
+location, the Battlefield it goes into (the one in view by default), the stage
+(Aim by default), an optional note for that stage and an optional pasted
+description (which lets Rank grade it). Fields use the glass-field style in two
+columns, and the form ends with Add job (primary) and Cancel. Errors are one plain
+sentence beside the buttons. A hand-added job is an ordinary job row and shows in
+the stage list like any other.
+
 ### Notes
 
 The same split as Resumes: a narrow column (20rem) and an editor that takes the

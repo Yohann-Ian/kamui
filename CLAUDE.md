@@ -124,6 +124,13 @@ One Next.js app and one Postgres database, deployed on Railway as four services:
   older version (labelled with its rubric version).
 - **Stages**: Aim, Applied, Screening, Interview, Offer, Rejected, Dropped.
   Everything from Applied onward is hidden from Discovery but still counted.
+- **Jobs added by hand**: Tracking's "+ Add job" (`web/app/tracking/actions.ts`)
+  creates an ordinary Job in a Battlefield with an Application at the chosen stage.
+  `atsJobId` is `linkedin:<job id>` for LinkedIn links (any shape: /jobs/view/<id>,
+  /jobs/view/<slug>-<id>, ?currentJobId=<id>; the stored url is the canonical
+  /jobs/view/<id>/) and `manual:<sha1 of host+path>` otherwise; `source` is
+  `linkedin` or `manual`; `raw.addedByHand` is true. Adding one that is already in
+  the Battlefield just moves it to the chosen stage.
 - **Job closure**: never infer that a job closed because a search did not return it
   (searches are capped). Closure is only set by the on-demand URL check when a job is
   opened, and a job with an Application is never auto-hidden or deleted.
@@ -243,7 +250,8 @@ request, five jobs at a time.
     web/app/explore/page.tsx    Explore (server): holding bay of saved waves, ?wave=<id>
     web/app/explore/Explore.tsx Explore (client): search form, wave progress, promote
     web/app/tracking/page.tsx           Tracking (server)
-    web/app/tracking/TrackingBoard.tsx  Tracking (client)
+    web/app/tracking/TrackingBoard.tsx  Tracking (client), with the + Add job form
+    web/app/tracking/actions.ts         addManualJob: a LinkedIn (or any) posting added by hand
     web/app/resumes/page.tsx, Resumes.tsx, actions.ts  Resumes: list, versions, notes, slots, preview
     web/lib/resumes.ts          file kinds, type checks, version labels, download headers
     web/lib/resumeLock.ts       the Resumes password lock: check, unlock, lock, change password
@@ -331,6 +339,7 @@ to 24h turnaround).
   is now "Default settings".
 - A Notes page (sidebar, after Resumes): free-form notes, optionally filed under a
   Battlefield, saved as you type.
+- Tracking can add jobs by hand (LinkedIn or any job page) straight into a stage.
 
 ## Still to build
 

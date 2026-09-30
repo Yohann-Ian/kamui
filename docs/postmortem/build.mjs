@@ -22,7 +22,7 @@ import {
 
 const OUT = new URL("../KAMUI-postmortem.docx", import.meta.url);
 const UPDATED = "2026-09-30";
-const LATEST = "the Notes page";
+const LATEST = "adding LinkedIn jobs to Tracking by hand";
 
 // ---------------------------------------------------------------- content
 
@@ -978,6 +978,57 @@ const PHASES = [
       "Two tabs editing the same note: the last save wins; there is no merge.",
     ],
     dataChanges: ["Note table added. Test notes created during verification were deleted; the table is empty."],
+  },
+  {
+    title: "Adding jobs to Tracking by hand (LinkedIn)",
+    date: "2026-09-30",
+    commit: "see git log: Add jobs to Tracking by hand",
+    summary:
+      "Tracking has a + Add job button for postings found outside KAMUI, mainly on LinkedIn. It takes the link, title, company, location, Battlefield, stage (Aim by default), an optional note for that stage and an optional pasted description, and creates an ordinary job in that Battlefield tracked at that stage.",
+    changes: [
+      "web/app/tracking/actions.ts: addManualJob. LinkedIn links of any shape resolve to the numeric job id (atsJobId linkedin:<id>, url https://www.linkedin.com/jobs/view/<id>/); other links get manual:<sha1 of host+path>. Dedup uses the existing (battlefieldId, atsJobId) key: re-adding a job moves it to the chosen stage (and un-dismisses it) instead of duplicating it.",
+      "TrackingBoard.tsx: + Add job in the header opens the form in place of the selected card; on success the new job is selected and the header says where it went. The fields scroll inside the card on short screens; the buttons stay visible.",
+      "tracking/page.tsx passes the Battlefield list (the one in view is the default).",
+      "DESIGN-SYSTEM.md documents the form (section 9).",
+    ],
+    decisions: [
+      [
+        "No automatic fetch of the LinkedIn page",
+        "LinkedIn blocks server requests from data-centre addresses (status 999 or a login wall), so auto-filling title and company from Railway would be unreliable. The form asks for them instead.",
+        "Could be added later as a best-effort button.",
+      ],
+      [
+        "A hand-added job is an ordinary Job row",
+        "So Discovery, Stats, the closed check and Rank all work on it; pasting the description lets Rank grade it.",
+        "At Aim it also shows in Discovery's list; from Applied onward it is hidden there like any applied job.",
+      ],
+      [
+        "Default stage is Aim",
+        "The first stage; Applied and the rest are one select away.",
+        "A job already applied to is one click different.",
+      ],
+    ],
+    incidents: [
+      [
+        "After a rejected submit the form was wiped.",
+        "React 19 resets a form after its action finishes, so an error cleared what had been typed and the next submit failed browser validation.",
+        "The form uses an onSubmit handler with a transition instead of a form action, so fields survive an error.",
+      ],
+      [
+        "At 1280x680 the Add job button was below the fold inside the form.",
+        "The whole card scrolled.",
+        "Only the fields scroll; the buttons are pinned to the bottom of the card.",
+      ],
+    ],
+    verification: [
+      "tsc and eslint clean; production build passes.",
+      "Browser at 1440x900 on AI/ML Engineer: an ftp:// link is refused with a plain error and the typed title stays; a linkedin.com/jobs/search/?currentJobId= link adds the job at Applied with its note, selects it, and Open posting points at the canonical /jobs/view/<id>/; re-adding the same job through a /jobs/view/<slug>-<id>?trk= link reports it is already there and moves it to Interview, still one row. At 1280x680 the form fits with its buttons visible and the page does not overflow. No console errors.",
+      "The closed check cannot mistake a LinkedIn redirect for a closed job: its redirect rule needs the atsJobId in the URL, and linkedin:<id> never is.",
+    ],
+    risks: [
+      "LinkedIn often answers bots with status 999 or a login page, so the on-select closed check is usually inconclusive for these jobs (it changes nothing when inconclusive).",
+    ],
+    dataChanges: ["None kept: the test job (linkedin:9999999901) and its application and note were deleted after testing."],
   },
 ];
 

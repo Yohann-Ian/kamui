@@ -12,12 +12,18 @@ export default async function Tracking({
   const params = await searchParams;
   const { current } = await resolveBattlefield(params.battlefield);
 
-  const [rubric, apps] = await Promise.all([
+  const [rubric, apps, battlefields] = await Promise.all([
     prisma.rubric.findFirst({ where: { battlefieldId: current?.id ?? "", active: true } }),
     prisma.application.findMany({
       where: { job: { battlefieldId: current?.id ?? "" } },
       include: { job: { include: { judgments: true, statusNotes: true } } },
       orderBy: { updatedAt: "desc" },
+    }),
+    // where a job added by hand can go
+    prisma.battlefield.findMany({
+      where: { archived: false },
+      orderBy: [{ createdAt: "asc" }, { name: "asc" }],
+      select: { id: true, name: true },
     }),
   ]);
 
@@ -42,7 +48,8 @@ export default async function Tracking({
     <TrackingBoard
       key={current?.slug}
       jobs={data}
-      battlefield={current ? { slug: current.slug, name: current.name } : null}
+      battlefield={current ? { id: current.id, slug: current.slug, name: current.name } : null}
+      battlefields={battlefields}
     />
   );
 }
