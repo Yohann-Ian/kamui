@@ -425,6 +425,19 @@ is a glass card containing the document itself. The document is the one place
 dark text on a light ground appears: it is the user's file, shown as a page, not
 interface text.
 
+### Notes
+
+The same split as Resumes: a narrow column (20rem) and an editor that takes the
+rest. The column is one glass card: a search field, a Battlefield filter (All
+notes, Unfiled, then each Battlefield), then the notes as rows (title, then the
+first line of the body and how long ago it was edited; pinned notes first, marked
+"Pinned"). The selected row has the row-selected fill, as in the job list. The
+editor is a glass card: the title as a borderless input at the title size, a line
+with the Battlefield select, Pin and Delete, a quiet save state ("Saving...",
+"Saved"), then the body as a borderless textarea filling the card at body size.
+Nothing in it is coloured; New note is the page's one primary button. Notes save
+as you type; there is no Save button. An empty note is discarded when you leave it.
+
 ---
 
 ## 10. Explicitly rejected

@@ -21,8 +21,8 @@ import {
 } from "docx";
 
 const OUT = new URL("../KAMUI-postmortem.docx", import.meta.url);
-const UPDATED = "2026-09-29";
-const LATEST = "the Discovery search bar and Stats card";
+const UPDATED = "2026-09-30";
+const LATEST = "the Notes page";
 
 // ---------------------------------------------------------------- content
 
@@ -931,6 +931,53 @@ const PHASES = [
       "Country detection is heuristic: about half the jobs have countryDerived; the rest are matched on location text, and anything unmatched is Unknown (left out of the country list, grouped in Other on the chart).",
     ],
     dataChanges: ["Battlefield.customLocations column added (empty for existing rows). A test chip (Berlin) was added and removed on AI/ML Engineer."],
+  },
+  {
+    title: "Notes page",
+    date: "2026-09-30",
+    commit: "see git log: Notes page",
+    summary:
+      "A Notes page in the sidebar (after Resumes) for writing things down: a narrow list with search, a Battlefield filter and pinned notes first, and an editor that takes the rest of the screen. Notes save as you type; there is no Save button. A note can be filed under a Battlefield.",
+    changes: [
+      "prisma/migrations/20261001090000_notes: new table Note (title, body, pinned, optional battlefieldId with ON DELETE SET NULL, createdAt, updatedAt, index on updatedAt).",
+      "web/app/notes/: page.tsx (server: notes, Battlefields, ?note=), Notes.tsx (client: list, search, filter, editor, autosave), actions.ts (createNote, updateNote as an upsert, deleteNote; no revalidation, the page keeps its own copy).",
+      "Autosave: 600ms after the last keystroke, immediately when switching notes, on Ctrl/Cmd+S and on pagehide. The save state reads Saving..., Saved, edited <time>, or Not saved (the fields are kept and retried on the next edit).",
+      "A note left empty (no title, no body) is discarded when you leave it or leave the page. Deleting a note with text asks first.",
+      "Sidebar gains Notes. DESIGN-SYSTEM.md section 9 documents the screen.",
+    ],
+    decisions: [
+      [
+        "Notes are app-wide, with an optional Battlefield",
+        "Not every note belongs to a job search track; filing is one select and the list filters by it (All notes, Unfiled, each Battlefield).",
+        "Deleting a Battlefield keeps its notes, unfiled.",
+      ],
+      [
+        "Not behind the Resumes password",
+        "Not asked for; the lock covers Resumes only.",
+        "Easy to add with the same requireResumesUnlocked check if wanted.",
+      ],
+      [
+        "updateNote is an upsert",
+        "Any race that removes the row (the empty-note cleanup, another tab) would otherwise make every later save fail. With an upsert the note comes back with what was typed.",
+        "Note ids from the client are checked against the cuid shape before a row can be created.",
+      ],
+    ],
+    incidents: [
+      [
+        "In dev, saves failed with P2025 (no record to update) after reloading onto an empty note.",
+        "React StrictMode runs effect cleanups once on mount; the cleanup that discards an empty note deleted the note still on screen.",
+        "updateNote became an upsert, and the note list ref is updated as you type so leaving a note sees the latest text. Retested: create, reload while empty, type, reload: the note is there.",
+      ],
+    ],
+    verification: [
+      "tsc and eslint clean; production build passes.",
+      "Browser at 1440x900: Notes opens from the sidebar with its empty state; New note focuses the title; title and two-line body survive a reload (Saved, edited just now); filing under AI/ML Engineer and Pin persist; an empty second note is discarded when leaving it (2 rows to 1); search finds body text and shows No notes match for nonsense; the Battlefield and Unfiled filters work; Delete removes it after reload. No console errors.",
+      "At 1280x680 the sidebar with the new Notes item still fits (scrollHeight equals clientHeight) and the page does not overflow.",
+    ],
+    risks: [
+      "Two tabs editing the same note: the last save wins; there is no merge.",
+    ],
+    dataChanges: ["Note table added. Test notes created during verification were deleted; the table is empty."],
   },
 ];
 

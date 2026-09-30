@@ -80,6 +80,10 @@ One Next.js app and one Postgres database, deployed on Railway as four services:
   and one DOCX per version (`@@unique([versionId, kind])`). File bytes are stored in
   Postgres, because Railway's disk does not survive a redeploy. Never select `data`
   in list queries.
+- **Note** — a free-form note (`title`, `body`, `pinned`), optionally filed under a
+  Battlefield (`battlefieldId`, set null if the Battlefield is deleted). The Notes
+  page saves as you type; `updateNote` is an upsert so a save can never fail on a
+  missing row, and a note left empty is discarded when you leave it.
 - **AppSetting** — key/value settings: `resumes.passwordHash` (salted scrypt; absent
   means the default password) and `resumes.signingKey` (signs the unlock cookie).
 - **Run** — an audit row for every search and rank, so spend is visible. A search
@@ -244,6 +248,7 @@ request, five jobs at a time.
     web/lib/resumes.ts          file kinds, type checks, version labels, download headers
     web/lib/resumeLock.ts       the Resumes password lock: check, unlock, lock, change password
     web/app/resumes/Lock.tsx    the lock screen
+    web/app/notes/page.tsx, Notes.tsx, actions.ts  Notes: list (search, Battlefield filter, pinned first), autosaving editor
     web/public/backgrounds/     web-sized background photographs (npm run backgrounds)
     web/scripts/sync-backgrounds.mjs    resizes <repo>/images into web/public/backgrounds
 
@@ -324,6 +329,8 @@ to 24h turnaround).
   filter on the list, and a Stats card (donut by country or by grade, with found
   and applied counts) under the Selected card. Battlefield settings' search card
   is now "Default settings".
+- A Notes page (sidebar, after Resumes): free-form notes, optionally filed under a
+  Battlefield, saved as you type.
 
 ## Still to build
 

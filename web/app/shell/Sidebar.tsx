@@ -49,6 +49,7 @@ export default function Sidebar({
       current: pathname.startsWith("/tracking"),
     },
     { href: "/resumes", label: "Resumes", current: pathname.startsWith("/resumes") },
+    { href: "/notes", label: "Notes", current: pathname.startsWith("/notes") },
     {
       href: context ? `/battlefields/${context}/settings` : "/battlefields/new",
       label: "Battlefield settings",
